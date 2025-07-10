@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "rush",
+    "rush-lib",
+]
+resolver = "3"
+
+[workspace.package]
+name = "rush-env"
+version = "0.1.0"
+edition = "2024"
+description = "A modern, configuration-driven Zsh environment generator"
+authors = ["BppleMan"]
+license = "Apache-2.0"
+repository = "https://github.com/BppleMan/rush-env"
