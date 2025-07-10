@@ -13,6 +13,14 @@ authors = ["BppleMan"]
 license = "Apache-2.0"
 repository = "https://github.com/BppleMan/rush-env"
 
+[workspace.dependencies]
+serde = { version = "1.0.219", default-features = false, features = ["derive"] }
+toml = { version = "0.9.0", default-features = false, features = ["parse", "serde"] }
+thiserror = { version = "2.0.12", default-features = false }
+clap = { version = "4.5.41", default-features = false, features = ["std", "derive"] }
+inquire = { version = "0.7.5", default-features = false, features = ["console"] }
+include_dir = { version = "0.7.4", default-features = false }
+
 [package]
 name = "rush-env"
 version.workspace = true
@@ -28,3 +36,4 @@ name = "rush"
 path = "src/main.rs"
 
 [dependencies]
+
