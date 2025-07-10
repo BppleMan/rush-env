@@ -1,15 +1,30 @@
 [workspace]
 members = [
-    "rush",
     "rush-lib",
 ]
 resolver = "3"
 
 [workspace.package]
 name = "rush-env"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A modern, configuration-driven Zsh environment generator"
 authors = ["BppleMan"]
 license = "Apache-2.0"
 repository = "https://github.com/BppleMan/rush-env"
+
+[package]
+name = "rush-env"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "rush"
+
+[[bin]]
+name = "rush"
+path = "src/main.rs"
+
+[dependencies]
