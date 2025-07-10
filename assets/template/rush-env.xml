@@ -1,0 +1,7 @@
+<rush>
+    <export name="HOST_URL"/>
+    <export name="HTTP_PROXY"/>
+    <module name="">
+
+    </module>
+</rush>
