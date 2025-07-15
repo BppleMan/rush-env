@@ -1,4 +1,4 @@
-pub struct Proxy {
+pub struct ProxyConfig {
     pub host_url: String,
     pub http_proxy_port: u16,
     pub socks_proxy_port: u16,
@@ -7,7 +7,7 @@ pub struct Proxy {
     pub all_proxy: String,
 }
 
-impl Proxy {
+impl ProxyConfig {
     pub fn new(host_url: String, http_proxy_port: u16, socks_proxy_port: u16) -> Self {
         let http_proxy = format!("http://{host_url}:{http_proxy_port}");
         let https_proxy = format!("http://{host_url}:{http_proxy_port}");

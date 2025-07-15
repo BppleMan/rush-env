@@ -1,7 +1,4 @@
 [workspace]
-members = [
-    "rush-lib",
-]
 resolver = "3"
 
 [workspace.package]
@@ -16,12 +13,13 @@ repository = "https://github.com/BppleMan/rush-env"
 [workspace.dependencies]
 serde = { version = "1.0.219", default-features = false, features = ["derive", "std"] }
 toml = { version = "0.9.0", default-features = false, features = ["parse", "serde"] }
+quick-xml = { version = "0.38.0", default-features = false, features = ["async-tokio", "serialize", "serde-types"] }
 thiserror = { version = "2.0.12", default-features = false }
+color-eyre = { version = "0.6.5", default-features = false, features = ["default"] }
 clap = { version = "4.5.41", default-features = false, features = ["std", "derive"] }
 inquire = { version = "0.7.5", default-features = false, features = ["console"] }
 include_dir = { version = "0.7.4", default-features = false }
-quick-xml = { version = "0.38.0", default-features = false, features = ["async-tokio"] }
-strong-xml = { version = "0.6.3" }
+tokio = { version = "1.46.1", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [package]
 name = "rush-env"
@@ -38,5 +36,8 @@ name = "rush"
 path = "src/main.rs"
 
 [dependencies]
+serde.workspace = true
 quick-xml.workspace = true
-strong-xml.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+color-eyre.workspace = true

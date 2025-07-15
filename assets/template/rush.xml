@@ -1,11 +1,11 @@
 <rush>
     <proxy>
-        <var name="PROXY_HOST">127.0.0.1</var>
-        <var name="HTTP_PROXY_PORT">6152</var>
-        <var name="SOCKS_PROXY_PORT">6153</var>
-        <var name="HTTP_PROXY">http://${PROXY_HOST}:${HTTP_PROXY_PORT}</var>
-        <var name="HTTPS_PROXY">https://${PROXY_HOST}:${HTTP_PROXY_PORT}</var>
-        <var name="ALL_PROXY">socks5://${PROXY_HOST}:${SOCKS_PROXY_PORT}</var>
+        <proxy_host>127.0.0.1</proxy_host>
+        <http_proxy_port>6152</http_proxy_port>
+        <socks_proxy_port>6153</socks_proxy_port>
+        <http_proxy>http://${proxy_host}:${http_proxy_port}</http_proxy>
+        <https_proxy>https://${proxy_host}:${http_proxy_port}</https_proxy>
+        <all_proxy>socks5://${proxy_host}:${socks_proxy_port}</all_proxy>
         <function name="pr">
             HTTP_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
             HTTPS_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
@@ -93,48 +93,47 @@
         <alias name="glogc">git log --oneline --topo-order --date-order --branches --tags --remotes --notes --decorate=no --pretty=format:%H</alias>
         <alias name="ggraph">git commit-graph write --reachable</alias>
     </aliases>
-    <env>
+    <envs>
         <export name="EDITOR">nvim</export>
         <export name="ICLOUD" os="macos">$HOME/Library/Mobile Documents/com~apple~CloudDocs</export>
         <export name="MANPAGER">sh -c 'col -bx | bat -l man'</export>
-    </env>
-    <dev_env>
-        <home bin_path="$HOME/bin">
-        </home>
-        <homebrew bin_path="/opt/homebrew/bin" os="macos" arch="aarch64">
-        </homebrew>
-        <java bin_path="$JAVA_HOME/bin">
+    </envs>
+    <dev_libs>
+    </dev_libs>
+    <dev_tools>
+        <tool name="home" bin_path="$HOME/bin">
+        </tool>
+        <tool name="homebrew" bin_path="/opt/homebrew/bin" os="macos" arch="aarch64">
+        </tool>
+        <tool name="java" bin_path="$JAVA_HOME/bin">
             <export name="JAVA_HOME" os="macos">$(/usr/libexec/java_home -v 17)</export>
-        </java>
-        <rust>
+        </tool>
+        <tool name="rust">
             <source>$HOME/.cargo/env</source>
-        </rust>
-        <flutter bin_path="$HOME/.pub-cache/bin">
+        </tool>
+        <tool name="flutter" bin_path="$HOME/.pub-cache/bin">
             <export name="PUB_HOSTED_URL">https://pub.flutter-io.cn</export>
             <export name="FLUTTER_STORAGE_BASE_URL">https://storage.flutter-io.cn</export>
-        </flutter>
-        <ruby>
+        </tool>
+        <tool name="ruby">
             <eval>rbenv init - zsh</eval>
             <export name="GEM_HOME">${HOME}/.gem</export>
-        </ruby>
-        <nodejs>
+        </tool>
+        <tool name="nodejs">
             <export name="NVM_DIR">$HOME/.nvm</export>
             <source>$NVM_DIR/nvm.sh</source>
             <eval>fnm env --use-on-cd --shell zsh</eval>
-        </nodejs>
-        <angular>
+        </tool>
+        <tool name="angular">
             <source>&lt;(ng completion script)</source>
-        </angular>
-        <dotnet bin_path="$DOTNET_ROOT">
+        </tool>
+        <tool name="dotnet" bin_path="$DOTNET_ROOT">
             <export name="DOTNET_ROOT">/usr/local/share/dotnet</export>
-        </dotnet>
-        <zoxide>
+        </tool>
+        <tool name="zoxide">
             <eval>zoxide init zsh</eval>
             <export name="ZOXIDE_DIR">$RUST_DIR/zoxide</export>
             <export name="_ZO_DATA_DIR">$ZOXIDE_DIR/zo_data</export>
-        </zoxide>
-    </dev_env>
-    <dev_lib>
-    </dev_lib>
-
+        </tool>
+    </dev_tools>
 </rush>
