@@ -1,3 +1,8 @@
+mod antidote;
+mod platform;
+mod proxy;
+mod shell_script;
+
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
 }
