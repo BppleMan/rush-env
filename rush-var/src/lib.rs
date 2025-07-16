@@ -1,32 +1,52 @@
-//! A minimal Bash-style env expander crate
+//! # rush-var —— Bash风格环境变量插值库
+//!
+//! 支持 $VAR, ${VAR}, ${VAR:-default}，适配多种环境变量源（HashMap/BTreeMap/切片/闭包/链式/系统环境等）。
+//!
+//! ## 用法示例
+//!
+//! ```rust
+//! use rush_var::expand_env;
+//! let env = [ ("FOO", "bar") ];
+//! assert_eq!(expand_env("Hello $FOO!", &env), "Hello bar!");
+//! assert_eq!(expand_env("path=${BAR:-/usr/local}/bin", &env), "path=/usr/local/bin");
+//! ```
+//!
+//! ## 支持自定义环境源
+//!
+//! ```rust
+//! use rush_var::env_source::{FnEnvSource};
+//! use rush_var::expand_env;
+//! let env = FnEnvSource(|k: &str| if k == "USER" { Some("alice".to_string()) } else { None });
+//! assert_eq!(expand_env("hi_$USER", &env), "hi_alice");
+//! ```
+//!
+//! ## 支持链式变量源（优先主源，后备源）
+//!
+//! ```rust
+//! use rush_var::env_source::{ChainEnvSource};
+//! use rush_var::expand_env;
+//! let main = [ ("A", "x") ];
+//! let mut fallback = std::collections::HashMap::new();
+//! fallback.insert("B".to_string(), "y".to_string());
+//! let chain = ChainEnvSource { primary: &main[..], fallback: &fallback };
+//! assert_eq!(expand_env("$A,$B", &chain), "x,y");
+//! ```
 
-use std::collections::HashMap;
+pub mod env_source;
 
-/// Trait for abstracting environment variable source
-pub trait EnvSource {
-    fn get(&self, key: &str) -> Option<String>;
-}
+use crate::env_source::EnvSource;
 
-impl EnvSource for std::env::Vars {
-    fn get(&self, key: &str) -> Option<String> {
-        std::env::var(key).ok()
-    }
-}
-
-impl EnvSource for std::env::VarsOs {
-    fn get(&self, key: &str) -> Option<String> {
-        std::env::var_os(key).and_then(|v| v.into_string().ok())
-    }
-}
-
-impl EnvSource for HashMap<String, String> {
-    fn get(&self, key: &str) -> Option<String> {
-        self.get(key).cloned()
-    }
-}
-
-/// Expands environment variable references in the input string
-/// Supports: $VAR, ${VAR}, ${VAR:-default}, $$
+/// Bash 风格环境变量插值主函数。
+///
+/// 支持 $VAR、${VAR}、${VAR:-default}、$$（字面$），适配多种环境变量源。
+///
+/// # 用法示例
+/// ```rust
+/// use rush_var::expand_env;
+/// let env = [ ("FOO", "bar") ];
+/// assert_eq!(expand_env("$FOO/bin", &env), "bar/bin");
+/// assert_eq!(expand_env("${BAR:-default}/lib", &env), "default/lib");
+/// ```
 pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
     let mut result = String::new();
     let mut chars = input.chars().peekable();
@@ -91,6 +111,8 @@ pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::env_source::{ChainEnvSource, FnEnvSource};
+    use std::collections::{BTreeMap, HashMap};
 
     #[test]
     fn test_expand_basic() {
@@ -164,5 +186,36 @@ mod tests {
     fn test_no_substitution() {
         let env = HashMap::new();
         assert_eq!(expand_env("just a string", &env), "just a string");
+    }
+
+    #[test]
+    fn test_env_source_btree_map() {
+        let mut env = BTreeMap::new();
+        env.insert("FOO".into(), "baz".into());
+        assert_eq!(expand_env("$FOO", &env), "baz");
+    }
+
+    #[test]
+    fn test_env_source_slice() {
+        let env: &[(&str, &str)] = &[("FOO", "baz")];
+        assert_eq!(expand_env("prefix_$FOO", &env), "prefix_baz");
+    }
+
+    #[test]
+    fn test_env_source_fn_adapter() {
+        let env_fn = FnEnvSource(|key: &str| if key == "FOO" { Some("baz".into()) } else { None });
+        assert_eq!(expand_env("abc$FOO", &env_fn), "abcbaz");
+    }
+
+    #[test]
+    fn test_chain_env_source() {
+        let env1 = [("FOO", "a")];
+        let mut env2 = HashMap::new();
+        env2.insert("BAR".into(), "b".into());
+        let chain = ChainEnvSource {
+            primary: &env1[..],
+            fallback: &env2,
+        };
+        assert_eq!(expand_env("$FOO:$BAR:$BAZ", &chain), "a:b:");
     }
 }
