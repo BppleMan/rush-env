@@ -1,10 +1,11 @@
-use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
-pub static PLATFORM: LazyLock<Platform> = LazyLock::new(|| Platform::current());
+pub static PLATFORM: LazyLock<Platform> = LazyLock::new(Platform::current);
 
 #[allow(non_camel_case_types)]
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum OS {
     macos,
     linux,
@@ -14,6 +15,7 @@ pub enum OS {
 
 #[allow(non_camel_case_types)]
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ARCH {
     x86_64,
     aarch64,
@@ -21,36 +23,48 @@ pub enum ARCH {
     unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct Platform {
-    pub os: OS,
-    pub arch: ARCH,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PlatformMatrix {
-    pub os: Vec<OS>,
-    pub arch: Vec<ARCH>,
+    #[serde(rename = "@os", default)]
+    pub os: Option<OS>,
+    #[serde(rename = "@arch", default)]
+    pub arch: Option<ARCH>,
 }
 
 impl Platform {
     pub fn current() -> Self {
         Self {
             os: match std::env::consts::OS {
-                "linux" => OS::linux,
-                "macos" => OS::macos,
-                _ => OS::unknown,
+                "linux" => Some(OS::linux),
+                "macos" => Some(OS::macos),
+                _ => Some(OS::unknown),
             },
             arch: match std::env::consts::ARCH {
-                "x86_64" => ARCH::x86_64,
-                "aarch64" => ARCH::aarch64,
-                _ => ARCH::unknown,
+                "x86_64" => Some(ARCH::x86_64),
+                "aarch64" => Some(ARCH::aarch64),
+                _ => Some(ARCH::unknown),
             },
         }
     }
 
     pub fn as_tag(&self) -> String {
-        format!("{}-{}", self.os.as_str(), self.arch.as_str())
+        let mut tag = String::new();
+        if let Some(os) = &self.os {
+            tag.push_str(os.as_str());
+        } else {
+            tag.push_str("unknown");
+        }
+        if let Some(arch) = &self.arch {
+            tag.push('-');
+            tag.push_str(arch.as_str());
+        }
+        tag
+    }
+
+    pub fn contains_current(&self) -> bool {
+        let current = &PLATFORM;
+        (self.os.is_none() || self.os == current.os) && (self.arch.is_none() || self.arch == current.arch)
     }
 }
 
@@ -70,15 +84,6 @@ impl ARCH {
             ARCH::x86_64 => "x86_64",
             ARCH::aarch64 => "aarch64",
             ARCH::unknown => "unknown",
-        }
-    }
-}
-
-impl Default for PlatformMatrix {
-    fn default() -> Self {
-        Self {
-            os: vec![OS::linux, OS::macos],
-            arch: vec![ARCH::x86_64, ARCH::aarch64],
         }
     }
 }

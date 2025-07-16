@@ -1,52 +1,38 @@
-use crate::core::dev_tool::DevTool;
+use crate::core::language::Languages;
+use crate::core::plugin::Plugins;
 use crate::core::proxy::Proxy;
-use crate::core::shell_script::ShellScript;
-use serde::{Deserialize, Deserializer, Serialize};
+use crate::core::script::Scripts;
+use crate::core::tool::Tools;
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Rush {
     pub proxy: Proxy,
-    #[serde(deserialize_with = "shell_script_list")]
-    pub starship: Vec<ShellScript>,
-    #[serde(deserialize_with = "shell_script_list")]
-    pub antidote: Vec<ShellScript>,
-    #[serde(deserialize_with = "shell_script_list")]
-    pub functions: Vec<ShellScript>,
-    #[serde(deserialize_with = "shell_script_list")]
-    pub aliases: Vec<ShellScript>,
-    #[serde(deserialize_with = "shell_script_list")]
-    pub envs: Vec<ShellScript>,
-    #[serde(deserialize_with = "shell_script_list")]
-    pub dev_libs: Vec<ShellScript>,
-    #[serde(deserialize_with = "dev_tool_list")]
-    pub dev_tools: Vec<DevTool>,
+    #[serde(default)]
+    pub plugins: Plugins,
+    #[serde(default)]
+    pub functions: Scripts,
+    #[serde(default)]
+    pub aliases: Scripts,
+    #[serde(default)]
+    pub envs: Scripts,
+    #[serde(default)]
+    pub languages: Languages,
+    #[serde(default)]
+    pub tools: Tools,
 }
 
-pub fn shell_script_list<'de, D>(deserializer: D) -> Result<Vec<ShellScript>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    /// Represents <list>...</list>
-    #[derive(Deserialize)]
-    struct List {
-        // default allows empty list
-        #[serde(rename = "$value", default)]
-        element: Vec<ShellScript>,
+impl Visitor for Rush {
+    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+        self.proxy.visit(context)?;
+        self.plugins.visit(context)?;
+        self.functions.visit(context)?;
+        self.aliases.visit(context)?;
+        self.envs.visit(context)?;
+        self.languages.visit(context)?;
+        self.tools.visit(context)?;
+        Ok(())
     }
-    Ok(List::deserialize(deserializer)?.element)
-}
-
-pub fn dev_tool_list<'de, D>(deserializer: D) -> Result<Vec<DevTool>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    /// Represents <list>...</list>
-    #[derive(Deserialize)]
-    struct List {
-        // default allows empty list
-        #[serde(rename = "$value", default)]
-        element: Vec<DevTool>,
-    }
-    Ok(List::deserialize(deserializer)?.element)
 }

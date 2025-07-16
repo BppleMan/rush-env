@@ -1,52 +1,51 @@
 <rush>
     <proxy>
-        <proxy_host>127.0.0.1</proxy_host>
-        <http_proxy_port>6152</http_proxy_port>
-        <socks_proxy_port>6153</socks_proxy_port>
-        <http_proxy>http://${proxy_host}:${http_proxy_port}</http_proxy>
-        <https_proxy>https://${proxy_host}:${http_proxy_port}</https_proxy>
-        <all_proxy>socks5://${proxy_host}:${socks_proxy_port}</all_proxy>
-        <function name="pr">
-            HTTP_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
-            HTTPS_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
-            ALL_PROXY="socks5://${PROXY_HOST}:${SOCKS_PROXY_PORT}" \
-            $@
-        </function>
+        <host>127.0.0.1</host>
+        <http_port>6152</http_port>
+        <socks_port>6153</socks_port>
+        <scripts>
+            <var name="http_proxy">http://${proxy_host}:${http_proxy_port}</var>
+            <var name="https_proxy">https://${proxy_host}:${http_proxy_port}</var>
+            <var name="all_proxy">socks5://${proxy_host}:${socks_proxy_port}</var>
+            <function name="pr">
+                HTTP_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
+                HTTPS_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
+                ALL_PROXY="socks5://${PROXY_HOST}:${SOCKS_PROXY_PORT}" \
+                $@
+            </function>
+        </scripts>
     </proxy>
-    <starship>
-        <export name="STARSHIP_DIR">${RUSH_DIR}/starship</export>
-        <export name="STARSHIP_BIN">${STARSHIP_DIR}/bin</export>
-        <export name="STARSHIP_CONFIG">${STARSHIP_DIR}/starship.toml</export>
-        <export name="STARSHIP_CACHE">${STARSHIP_DIR}/cache</export>
-        <var name="STARSHIP">${STARSHIP}/starship</var>
-        <eval>${STARSHIP} init zsh</eval>
-    </starship>
-    <antidote>
-        <export name="ANTIDOTE_DIR">${RUSH_DIR}/antidote</export>
-        <export name="ANTIDOTE_BIN">${RUSH_DIR}/antidote/antidote</export>
-        <export name="ZDOTDIR">${ANTIDOTE_DIR}/zdotdir</export>
-        <source>${ANTIDOTE_BIN}/antidote.zsh</source>
-        <raw>pr antidote load</raw>
-    </antidote>
+    <plugins>
+        <plugin name="antidote" work_dir="${RUSH_DIR}/antidote">
+            <scripts>
+                <export name="ZDOTDIR">${ANTIDOTE_DIR}/zdotdir</export>
+                <source>${ANTIDOTE_DIR}/antidote.zsh</source>
+                <raw>pr antidote load</raw>
+            </scripts>
+        </plugin>
+        <plugin name="starship" work_dir="${RUSH_DIR}/starship">
+            <scripts>
+                <export name="STARSHIP_CONFIG">${STARSHIP_DIR}/starship.toml</export>
+                <export name="STARSHIP_CACHE">${STARSHIP_DIR}/cache</export>
+                <eval>${STARSHIP_DIR}/starship init zsh</eval>
+            </scripts>
+        </plugin>
+    </plugins>
     <functions>
-        <function name="has">
-            command -v "$1" >/dev/null 2>&amp;1
-        </function>
-        <function name="file_exists">
-            [[ -f "$1" ]]
-        </function>
-        <function name="dir_exists">
-            [[ -d "$1" ]]
-        </function>
-        <function name="link_exists">
-            [[ -L "$1" ]]
-        </function>
-        <function name="createNodeTSStarter">
+        <function name="has">command -v "$1" >/dev/null 2>&amp;1</function>
+        <function name="file_exists">[[ -f "$1" ]]</function>
+        <function name="dir_exists">[[ -d "$1" ]]</function>
+        <function name="link_exists">[[ -L "$1" ]]</function>
+        <function name="cd">builtin cd "$@" &amp;&amp; ls</function>
+        <function name="gi">curl -sLw n "https://www.toptal.com/developers/gitignore/api/$*"</function>
+        <function name="line_cursor">printf "\e[5 q" > "$TTY"</function>
+        <function name="batf">tail -f "$1" | bat --paging=never -l log</function>
+        <function name="create_node_ts_starter">
             git clone --depth=1 https://github.com/Microsoft/TypeScript-Node-Starter.git "$1"
             cd "$1" || exit 0
             npm install
         </function>
-        <function name="colortest">
+        <function name="color_test">
             T='gYw' # The test text
 
             echo -e "\n 40m 41m 42m 43m\
@@ -63,18 +62,6 @@
             echo;
             done
             echo
-        </function>
-        <function name="cd">
-            builtin cd "$@" <![CDATA[&&]]> ls
-        </function>
-        <function name="gi">
-            curl -sLw n "https://www.toptal.com/developers/gitignore/api/$*"
-        </function>
-        <function name="line_cursor">
-            printf "\e[5 q" > "$TTY"
-        </function>
-        <function name="batf">
-            tail -f "$1" | bat --paging=never -l log
         </function>
     </functions>
     <aliases>
@@ -95,45 +82,138 @@
     </aliases>
     <envs>
         <export name="EDITOR">nvim</export>
-        <export name="ICLOUD" os="macos">$HOME/Library/Mobile Documents/com~apple~CloudDocs</export>
+        <export name="ICLOUD">
+            ${HOME}/Library/Mobile Documents/com~apple~CloudDocs
+            <condition>
+                <dir_exists>${HOME}/Library/Mobile Documents/com~apple~CloudDocs</dir_exists>
+            </condition>
+        </export>
         <export name="MANPAGER">sh -c 'col -bx | bat -l man'</export>
     </envs>
-    <dev_libs>
-    </dev_libs>
-    <dev_tools>
-        <tool name="home" bin_path="$HOME/bin">
-        </tool>
-        <tool name="homebrew" bin_path="/opt/homebrew/bin" os="macos" arch="aarch64">
-        </tool>
-        <tool name="java" bin_path="$JAVA_HOME/bin">
-            <export name="JAVA_HOME" os="macos">$(/usr/libexec/java_home -v 17)</export>
-        </tool>
-        <tool name="rust">
-            <source>$HOME/.cargo/env</source>
-        </tool>
-        <tool name="flutter" bin_path="$HOME/.pub-cache/bin">
-            <export name="PUB_HOSTED_URL">https://pub.flutter-io.cn</export>
-            <export name="FLUTTER_STORAGE_BASE_URL">https://storage.flutter-io.cn</export>
-        </tool>
-        <tool name="ruby">
-            <eval>rbenv init - zsh</eval>
-            <export name="GEM_HOME">${HOME}/.gem</export>
-        </tool>
-        <tool name="nodejs">
-            <export name="NVM_DIR">$HOME/.nvm</export>
-            <source>$NVM_DIR/nvm.sh</source>
-            <eval>fnm env --use-on-cd --shell zsh</eval>
-        </tool>
-        <tool name="angular">
-            <source>&lt;(ng completion script)</source>
-        </tool>
-        <tool name="dotnet" bin_path="$DOTNET_ROOT">
-            <export name="DOTNET_ROOT">/usr/local/share/dotnet</export>
+    <languages>
+        <language name="java" version="17">
+            <description>java sdk</description>
+            <condition>
+                <platform os="macos"/>
+            </condition>
+            <paths>
+                <path>${JAVA_HOME}/bin</path>
+            </paths>
+            <scripts>
+                <export name="JAVA_HOME">$(/usr/libexec/java_home -v ${JAVA_VERSION})</export>
+            </scripts>
+        </language>
+        <language name="rust">
+            <description>rust and cargo</description>
+            <scripts>
+                <source>${HOME}/.cargo/env</source>
+            </scripts>
+        </language>
+        <language name="flutter">
+            <description>flutter and dart</description>
+            <scripts>
+                <export name="PUB_HOSTED_URL">https://pub.flutter-io.cn</export>
+                <export name="FLUTTER_STORAGE_BASE_URL">https://storage.flutter-io.cn</export>
+            </scripts>
+        </language>
+        <language name="ruby" version="3.1.0">
+            <description>ruby and gem</description>
+            <condition>
+                <has>rbenv</has>
+            </condition>
+            <paths>
+                <path>${GEM_HOME}/ruby/${RUBY_VERSION}/bin</path>
+            </paths>
+            <scripts>
+                <eval>rbenv init - zsh</eval>
+                <export name="GEM_HOME">${HOME}/.gem</export>
+            </scripts>
+        </language>
+        <language name="nvm">
+            <description>nvm and nodejs</description>
+            <condition>
+                <all>
+                    <file_exists>${HOME}/.nvm/nvm.sh</file_exists>
+                    <has>nvm</has>
+                </all>
+            </condition>
+            <scripts>
+                <export name="NVM_DIR">${HOME}/.nvm</export>
+                <source>${NVM_DIR}/nvm.sh</source>
+            </scripts>
+        </language>
+        <language name="fnm">
+            <description>fnm and nodejs</description>
+            <condition>
+                <has>fnm</has>
+            </condition>
+            <scripts>
+                <eval>fnm env --use-on-cd --shell zsh</eval>
+            </scripts>
+        </language>
+        <language name="pnpm">
+            <description>pnpm package manager</description>
+            <condition>
+                <has>pnpm</has>
+            </condition>
+            <paths>
+                <path>${PNPM_HOME}</path>
+            </paths>
+            <scripts>
+                <export name="PNPM_HOME">${HOME}/.pnpm-store</export>
+            </scripts>
+        </language>
+        <language name="angular">
+            <description>angular and ng</description>
+            <condition>
+                <has>ng</has>
+            </condition>
+            <scripts>
+                <source>&lt;(ng completion script)</source>
+            </scripts>
+        </language>
+        <language name="dotnet">
+            <description>.NET SDK</description>
+            <condition>
+                <has>dotnet</has>
+            </condition>
+            <paths>
+                <path>${DOTNET_ROOT}</path>
+            </paths>
+            <scripts>
+                <export name="DOTNET_ROOT">/usr/local/share/dotnet</export>
+            </scripts>
+        </language>
+        <language name="haskell">
+            <description>Haskell and GHCUP</description>
+            <condition>
+                <file_exists>${HOME}/.ghcup/env</file_exists>
+            </condition>
+            <scripts>
+                <source>${HOME}/.ghcup/env</source>
+            </scripts>
+        </language>
+    </languages>
+    <tools>
+        <tool name="deno">
+            <description>Deno runtime</description>
+            <condition>
+                <has>deno</has>
+            </condition>
+            <paths>
+                <path>${HOME}/.deno/bin</path>
+            </paths>
         </tool>
         <tool name="zoxide">
-            <eval>zoxide init zsh</eval>
-            <export name="ZOXIDE_DIR">$RUST_DIR/zoxide</export>
-            <export name="_ZO_DATA_DIR">$ZOXIDE_DIR/zo_data</export>
+            <description>zoxide 是一个更智能的 cd 命令</description>
+            <condition>
+                <has>zoxide</has>
+            </condition>
+            <scripts>
+                <eval>zoxide init zsh</eval>
+                <export name="ZOXIDE_DIR">${RUSH_DIR}/zoxide</export>
+                <export name="_ZO_DATA_DIR">${ZOXIDE_DIR}/zo_data</export>
+            </scripts>
         </tool>
-    </dev_tools>
+    </tools>
 </rush>

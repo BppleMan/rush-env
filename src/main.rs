@@ -1,5 +1,6 @@
 use color_eyre::Result;
 use rush_env::core::rush::Rush;
+use rush_env::visitor::{Visitor, VisitorContext};
 
 const TEMPLATE: &str = include_str!("../assets/template/rush.xml");
 
@@ -8,7 +9,9 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
 
     let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
-    println!("{:#?}", rush);
+    let mut context = VisitorContext::default();
+    rush.visit(&mut context)?;
+    println!("{}", context.script);
 
     Ok(())
 }

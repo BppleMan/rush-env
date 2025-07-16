@@ -1,14 +1,18 @@
-use crate::core::shell_script::function_script::FunctionScript;
+use crate::core::script::Scripts;
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Proxy {
-    pub proxy_host: String,
-    pub http_proxy_port: String,
-    pub socks_proxy_port: String,
-    pub http_proxy: String,
-    pub https_proxy: String,
-    pub all_proxy: String,
-    pub function: FunctionScript,
+    pub host: String,
+    pub http_port: String,
+    pub socks_port: String,
+    pub scripts: Scripts,
+}
+
+impl Visitor for Proxy {
+    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+        self.scripts.visit(context)
+    }
 }
