@@ -1,5 +1,5 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Render, Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 
@@ -23,12 +23,7 @@ impl Visitor for RawScript {
         if !self.condition.check() {
             return Ok(());
         }
-        self.render_script(&mut context.script)
-    }
-}
-
-impl Render for RawScript {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        Ok(writeln!(output, "{}", self.script)?)
+        writeln!(context.script, "{}", self.script)?;
+        Ok(())
     }
 }

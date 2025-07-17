@@ -1,5 +1,4 @@
 use crate::core::path::Path;
-use std::fmt::Write;
 use thiserror::Error;
 
 #[derive(Default, Debug)]
@@ -12,15 +11,15 @@ pub trait Visitor {
     fn visit<'a>(&'a self, _context: &mut VisitorContext<'a>) -> Result<(), VisitorError>;
 }
 
-pub trait Render {
-    fn render_script<W: Write>(&self, _output: &mut W) -> Result<(), VisitorError>;
-}
-
-pub trait CollectPath {
-    fn collect_path<'a, 'b>(&'a self, _paths: &'b mut Vec<&'a Path>) -> Result<(), VisitorError>
-    where
-        'a: 'b;
-}
+// pub trait Render {
+//     fn render_script<W: Write>(&self, _output: &mut W) -> Result<(), VisitorError>;
+// }
+//
+// pub trait CollectPath {
+//     fn collect_path<'a, 'b>(&'a self, _paths: &'b mut Vec<&'a Path>) -> Result<(), VisitorError>
+//     where
+//         'a: 'b;
+// }
 
 #[derive(Debug, Error)]
 pub enum VisitorError {

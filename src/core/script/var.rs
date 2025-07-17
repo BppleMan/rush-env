@@ -1,5 +1,5 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Render, Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
@@ -46,12 +46,7 @@ impl Visitor for VarScript {
         if !self.condition.check() {
             return Ok(());
         }
-        self.render_script(&mut context.script)
-    }
-}
-
-impl Render for VarScript {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        Ok(writeln!(output, "{} = {}", self.name, self.value)?)
+        writeln!(context.script, "{} = {}", self.name, self.value)?;
+        Ok(())
     }
 }

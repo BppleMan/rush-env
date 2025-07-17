@@ -1,4 +1,4 @@
-use crate::visitor::{CollectPath, VisitorError};
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -45,24 +45,18 @@ impl Paths {
     }
 }
 
-impl CollectPath for Path {
-    fn collect_path<'a, 'b>(&'a self, paths: &'b mut Vec<&'a Path>) -> Result<(), VisitorError>
-    where
-        'a: 'b,
-    {
+impl Visitor for Path {
+    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
         self.export()?;
-        paths.push(self);
+        context.paths.push(self);
         Ok(())
     }
 }
 
-impl CollectPath for Paths {
-    fn collect_path<'a, 'b>(&'a self, paths: &'b mut Vec<&'a Path>) -> Result<(), VisitorError>
-    where
-        'a: 'b,
-    {
+impl Visitor for Paths {
+    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
         self.export()?;
-        paths.extend(self.0.iter());
+        context.paths.extend(self.0.iter());
         Ok(())
     }
 }

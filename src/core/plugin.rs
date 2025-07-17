@@ -1,9 +1,9 @@
 use crate::core::condition::Condition;
 use crate::core::script::Scripts;
-use crate::visitor::{Render, Visitor, VisitorContext, VisitorError};
+use crate::core::script::export::ExportScript;
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,15 +32,11 @@ impl Visitor for Plugin {
         if !self.condition.check() {
             return Ok(());
         }
-        self.render_script(&mut context.script)?;
+        let name = format!("{}_DIR", self.name.to_uppercase());
+        let value = self.work_dir.clone();
+        ExportScript::export(name, value, &mut context.script)?;
         self.scripts.visit(context)?;
         Ok(())
-    }
-}
-
-impl Render for Plugin {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        Ok(writeln!(output, r#"export {}_DIR = "{}""#, self.name.to_uppercase(), self.work_dir)?)
     }
 }
 

@@ -36,6 +36,27 @@ pub mod env_source;
 
 use crate::env_source::EnvSource;
 
+pub fn expand_env_vars(input: &str) -> String {
+    let vars = std::env::vars();
+    expand_env_recursive(input, &vars)
+}
+
+pub fn expand_env_recursive(input: &str, env: &impl EnvSource) -> String {
+    const MAX_EXPAND_DEPTH: usize = 8;
+    fn inner(s: &str, env: &impl EnvSource, depth: usize) -> String {
+        if depth >= MAX_EXPAND_DEPTH {
+            return s.to_string();
+        }
+        let expanded = expand_env(s, env);
+        if expanded.contains('$') && expanded != s {
+            inner(&expanded, env, depth + 1)
+        } else {
+            expanded
+        }
+    }
+    inner(input, env, 0)
+}
+
 /// Bash 风格环境变量插值主函数。
 ///
 /// 支持 $VAR、${VAR}、${VAR:-default}、$$（字面$），适配多种环境变量源。
@@ -217,5 +238,32 @@ mod tests {
             fallback: &env2,
         };
         assert_eq!(expand_env("$FOO:$BAR:$BAZ", &chain), "a:b:");
+    }
+
+    #[test]
+    fn test_recursive_expand() {
+        let mut env = HashMap::new();
+        env.insert("FOO".into(), "$BAR".into());
+        env.insert("BAR".into(), "hello".into());
+        assert_eq!(expand_env_recursive("$FOO world", &env), "hello world");
+    }
+
+    #[test]
+    fn test_recursive_multi_layer() {
+        let mut env = HashMap::new();
+        env.insert("A".into(), "$B".into());
+        env.insert("B".into(), "$C".into());
+        env.insert("C".into(), "$D".into());
+        env.insert("D".into(), "42".into());
+        assert_eq!(expand_env_recursive("A=$A, B=$B, C=$C, D=$D", &env), "A=42, B=42, C=42, D=42");
+    }
+
+    #[test]
+    fn test_recursive_prevent_infinite() {
+        let mut env = HashMap::new();
+        env.insert("LOOP".into(), "$LOOP".into());
+        let res = expand_env_recursive("start:$LOOP:end", &env);
+        // 最多递归8次，最后返回原样
+        assert!(res.contains("$LOOP"));
     }
 }

@@ -5,10 +5,10 @@ use crate::core::script::function::FunctionScript;
 use crate::core::script::raw::RawScript;
 use crate::core::script::source::SourceScript;
 use crate::core::script::var::VarScript;
-use crate::visitor::{Render, Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt::Write;
+use tracing::warn;
 
 pub mod alias;
 pub mod eval;
@@ -65,26 +65,17 @@ impl Visitor for Script {
             Script::Export(export) => export.visit(context),
             Script::Function(function) => function.visit(context),
             Script::Raw(raw) => raw.visit(context),
-            Script::Source(source) => source.visit(context),
+            Script::Source(source) => match source.visit(context) {
+                Ok(()) => Ok(()),
+                Err(VisitorError::SourceFileNotExist(file)) => {
+                    warn!("Source file {} does not exist", file);
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            },
             Script::Var(var) => var.visit(context),
             Script::None => Ok(()),
         }
-    }
-}
-
-impl Render for Script {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        match self {
-            Script::Alias(alias) => alias.render_script(output),
-            Script::Eval(eval) => eval.render_script(output),
-            Script::Export(export) => export.render_script(output),
-            Script::Function(function) => function.render_script(output),
-            Script::Raw(raw) => raw.render_script(output),
-            Script::Source(source) => source.render_script(output),
-            Script::Var(var) => var.render_script(output),
-            Script::None => Ok(()),
-        }?;
-        Ok(())
     }
 }
 

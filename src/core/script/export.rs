@@ -1,5 +1,5 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Render, Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 
@@ -15,8 +15,29 @@ pub struct ExportScript {
 }
 
 impl ExportScript {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            condition: Condition::default(),
+        }
+    }
+
     pub fn tag() -> &'static str {
         "<export name>"
+    }
+
+    pub fn export(name: impl AsRef<str>, value: impl AsRef<str>, script: &mut String) -> Result<(), VisitorError> {
+        let name = name.as_ref();
+        let value = value.as_ref();
+        if name.to_uppercase() == "PATH" {
+            return Err(VisitorError::ExportPath(value.to_string()));
+        }
+        unsafe {
+            std::env::set_var(name, value);
+        }
+        writeln!(script, r#"export {name} = "{value}""#)?;
+        Ok(())
     }
 }
 
@@ -25,15 +46,6 @@ impl Visitor for ExportScript {
         if !self.condition.check() {
             return Ok(());
         }
-        if self.name.to_uppercase() == "PATH" {
-            return Err(VisitorError::ExportPath(self.value.clone()));
-        }
-        self.render_script(&mut context.script)
-    }
-}
-
-impl Render for ExportScript {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        Ok(writeln!(output, r#"export {} = "{}""#, self.name, self.value)?)
+        Self::export(&self.name, &self.value, &mut context.script)
     }
 }

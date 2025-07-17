@@ -1,7 +1,9 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Render, Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use rush_var::expand_env_vars;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
+use std::path::PathBuf;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -23,16 +25,12 @@ impl Visitor for SourceScript {
         if !self.condition.check() {
             return Ok(());
         }
-        // let file = std::path::Path::new(&self.file);
-        // if !file.is_file() {
-        //     return Err(VisitorError::SourceFileNotExist(self.file.clone()));
-        // }
-        self.render_script(&mut context.script)
-    }
-}
-
-impl Render for SourceScript {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        Ok(writeln!(output, "source {}", self.file)?)
+        let expanded_file_path = expand_env_vars(&self.file);
+        let file = PathBuf::from(expanded_file_path);
+        if !file.is_file() {
+            return Err(VisitorError::SourceFileNotExist(self.file.clone()));
+        }
+        writeln!(context.script, "source {}", self.file)?;
+        Ok(())
     }
 }

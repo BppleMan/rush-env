@@ -1,10 +1,10 @@
 use crate::core::condition::Condition;
-use crate::core::path::{Path, Paths};
+use crate::core::path::Paths;
 use crate::core::script::Scripts;
-use crate::visitor::{CollectPath, Render, Visitor, VisitorContext, VisitorError};
+use crate::core::script::export::ExportScript;
+use crate::visitor::{Visitor, VisitorContext, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,33 +26,25 @@ pub struct Tool {
 #[derive(AsRef, AsMut, Deref, DerefMut)]
 pub struct Tools(pub Vec<Tool>);
 
+impl Tool {
+    pub fn tag() -> &'static str {
+        "<tool name version>"
+    }
+}
+
 impl Visitor for Tool {
     fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
-        self.collect_path(&mut context.paths)?;
-        self.render_script(&mut context.script)?;
+        if let Some(version) = &self.version {
+            let name = format!("{}_VERSION", self.name.to_uppercase());
+            let value = version.clone();
+            ExportScript::export(name, value, &mut context.script)?;
+        }
+        self.paths.visit(context)?;
         self.scripts.visit(context)?;
         Ok(())
-    }
-}
-
-impl Render for Tool {
-    fn render_script<W: Write>(&self, output: &mut W) -> Result<(), VisitorError> {
-        if let Some(version) = &self.version {
-            writeln!(output, r#"export {}_VERSION = "{}""#, self.name.to_uppercase(), version)?;
-        }
-        Ok(())
-    }
-}
-
-impl CollectPath for Tool {
-    fn collect_path<'a, 'b>(&'a self, paths: &'b mut Vec<&'a Path>) -> Result<(), VisitorError>
-    where
-        'a: 'b,
-    {
-        self.paths.collect_path(paths)
     }
 }
 
