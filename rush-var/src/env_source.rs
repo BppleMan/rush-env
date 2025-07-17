@@ -67,6 +67,7 @@ impl EnvSource for std::env::VarsOs {
 /// assert_eq!(expand_env("abc$FOO", &env), "abcbaz");
 /// ```
 pub struct FnEnvSource<F>(pub F);
+
 impl<F> EnvSource for FnEnvSource<F>
 where
     for<'a> F: Fn(&'a str) -> Option<String>,
@@ -78,13 +79,14 @@ where
 
 /// 链式环境变量源：优先查询 primary，没有再查 fallback。
 /// 常用于“临时变量+系统变量”的多层环境方案。
-pub struct ChainEnvSource<A, B> {
+pub struct EnvSourceChain<A, B> {
     /// 主查找源（优先）
     pub primary: A,
     /// 备选查找源（兜底）
     pub fallback: B,
 }
-impl<A: EnvSource, B: EnvSource> EnvSource for ChainEnvSource<A, B> {
+
+impl<A: EnvSource, B: EnvSource> EnvSource for EnvSourceChain<A, B> {
     fn get(&self, key: &str) -> Option<String> {
         self.primary.get(key).or_else(|| self.fallback.get(key))
     }

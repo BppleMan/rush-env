@@ -23,12 +23,12 @@
 //! ## 支持链式变量源（优先主源，后备源）
 //!
 //! ```rust
-//! use rush_var::env_source::{ChainEnvSource};
+//! use rush_var::env_source::{EnvSourceChain};
 //! use rush_var::expand_env;
 //! let main = [ ("A", "x") ];
 //! let mut fallback = std::collections::HashMap::new();
 //! fallback.insert("B".to_string(), "y".to_string());
-//! let chain = ChainEnvSource { primary: &main[..], fallback: &fallback };
+//! let chain = EnvSourceChain { primary: &main[..], fallback: &fallback };
 //! assert_eq!(expand_env("$A,$B", &chain), "x,y");
 //! ```
 
@@ -111,7 +111,7 @@ pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::env_source::{ChainEnvSource, FnEnvSource};
+    use crate::env_source::{EnvSourceChain, FnEnvSource};
     use std::collections::{BTreeMap, HashMap};
 
     #[test]
@@ -212,7 +212,7 @@ mod tests {
         let env1 = [("FOO", "a")];
         let mut env2 = HashMap::new();
         env2.insert("BAR".into(), "b".into());
-        let chain = ChainEnvSource {
+        let chain = EnvSourceChain {
             primary: &env1[..],
             fallback: &env2,
         };
