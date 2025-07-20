@@ -1,5 +1,5 @@
 [package]
-name = "rush-lib"
+name = "rush-say"
 version.workspace = true
 edition.workspace = true
 description.workspace = true
@@ -8,3 +8,5 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+clap.workspace = true
+color-eyre.workspace = true
