@@ -1,8 +1,12 @@
 //! # rush-var —— Bash风格环境变量插值库
 //!
-//! 支持 $VAR, ${VAR}, ${VAR:-default}，适配多种环境变量源（HashMap/BTreeMap/切片/闭包/链式/系统环境等）。
+//! 支持 `$VAR`、`${VAR}`、`${VAR:-default}`、`$$`（字面$）等语法，支持递归插值，适配多种环境变量源：
 //!
-//! ## 用法示例
+//! - [`HashMap<String, String>`], [`BTreeMap`], 切片对 (`&[(&str, &str)]`)
+//! - 自定义闭包 [`FnEnvSource`]（例如连接数据库、远程环境服务等）
+//! - 组合多个源 [`EnvSourceChain`]，优先从主源读取，回退到备用源
+//!
+//! ## 基础用法
 //!
 //! ```rust
 //! use rush_var::expand_env;
@@ -11,25 +15,47 @@
 //! assert_eq!(expand_env("path=${BAR:-/usr/local}/bin", &env), "path=/usr/local/bin");
 //! ```
 //!
-//! ## 支持自定义环境源
+//! ## 使用闭包作为环境源
 //!
 //! ```rust
-//! use rush_var::env_source::{FnEnvSource};
+//! use rush_var::env_source::FnEnvSource;
 //! use rush_var::expand_env;
 //! let env = FnEnvSource(|k: &str| if k == "USER" { Some("alice".to_string()) } else { None });
 //! assert_eq!(expand_env("hi_$USER", &env), "hi_alice");
 //! ```
 //!
-//! ## 支持链式变量源（优先主源，后备源）
+//! ## 组合多个变量源（优先主源，后备源）
 //!
 //! ```rust
-//! use rush_var::env_source::{EnvSourceChain};
+//! use rush_var::env_source::EnvSourceChain;
 //! use rush_var::expand_env;
 //! let main = [ ("A", "x") ];
 //! let mut fallback = std::collections::HashMap::new();
 //! fallback.insert("B".to_string(), "y".to_string());
 //! let chain = EnvSourceChain { primary: &main[..], fallback: &fallback };
 //! assert_eq!(expand_env("$A,$B", &chain), "x,y");
+//! ```
+//!
+//! ## 递归插值
+//!
+//! ```rust
+//! use std::collections::HashMap;
+//! use rush_var::expand_env_recursive;
+//!
+//! let mut env = HashMap::new();
+//! env.insert("A".into(), "$B".into());
+//! env.insert("B".into(), "123".into());
+//! assert_eq!(expand_env_recursive("val=$A", &env), "val=123");
+//! ```
+//!
+//! 最大递归深度限制为 8 层，以防止无限循环。
+//!
+//! ## 用于 std::env::vars()
+//!
+//! ```rust
+//! use rush_var::expand_env_vars;
+//! unsafe { std::env::set_var("FOO", "hello"); }
+//! assert_eq!(expand_env_vars("$FOO world"), "hello world");
 //! ```
 
 pub mod env_source;

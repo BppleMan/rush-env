@@ -1,8 +1,8 @@
 [package]
 name = "rush-var"
-version.workspace = true
+description = "Expand shell-style variables like $FOO and ${BAR:-default} recursively"
+version = "0.1.1"
 edition.workspace = true
-description.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
