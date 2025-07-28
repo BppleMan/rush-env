@@ -119,7 +119,13 @@ r#"#----------------------------------------------#
     #[test]
     fn test_section_auto_wrap_ascii() {
         let mut buf = Cursor::new(Vec::new());
-        say_section(&mut buf, "This is a long, long, long, long sentence that should auto wrap nicely.", 48, 2).unwrap();
+        say_section(
+            &mut buf,
+            "This is a long, long, long, long sentence that should auto wrap nicely.",
+            48,
+            2,
+        )
+        .unwrap();
         #[rustfmt::skip]
         let expected =
 r#"#----------------------------------------------#

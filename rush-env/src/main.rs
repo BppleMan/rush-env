@@ -1,6 +1,6 @@
 mod cli;
 
-use crate::cli::Cli;
+use crate::cli::{Cli, SubCmd};
 use clap::Parser;
 use color_eyre::Result;
 use color_eyre::eyre::{OptionExt, WrapErr};
@@ -20,8 +20,6 @@ fn main() -> Result<()> {
 
     let executable = Path::new(&std::env::args().next().ok_or_eyre("Executable name not found")?).canonicalize()?;
     println!("# {}", executable.display());
-    let cli = Cli::parse();
-    println!("{cli:#?}");
 
     #[cfg(debug_assertions)]
     let rush_dir = unsafe {
@@ -32,13 +30,21 @@ fn main() -> Result<()> {
     #[cfg(not(debug_assertions))]
     let rush_dir = PathBuf::new(std::env::var("RUSH_DIR").wrap_err("RUSH_DIR environment variable must be set")?);
 
-    let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
-    let mut context = Visitor {
-        rush_dir,
-        section: Section::new(64, 2),
-        ..Default::default()
-    };
-    rush.visit(&mut context, &mut stdout())?;
+    let cli = Cli::parse();
+    println!("{cli:#?}");
+
+    match cli.sub_cmd {
+        None => {
+            let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
+            let mut context = Visitor {
+                rush_dir,
+                section: Section::new(64, 2),
+                ..Default::default()
+            };
+            rush.visit(&mut context, &mut stdout())?;
+        }
+        Some(cmd) => cmd.execute(&executable)?,
+    }
 
     Ok(())
 }
