@@ -1,29 +1,28 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct RawScript {
+pub struct EvalScript {
     #[serde(rename = "$text")]
     pub script: String,
     #[serde(default)]
     pub condition: Condition,
 }
 
-impl RawScript {
+impl EvalScript {
     pub fn tag() -> &'static str {
-        "<raw>"
+        "<eval>"
     }
 }
 
-impl Visitor for RawScript {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for EvalScript {
+    fn visit<'a>(&'a self, _context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
-        writeln!(context.script, "{}", self.script)?;
+        writeln!(writer, r#"eval $({})"#, self.script)?;
         Ok(())
     }
 }

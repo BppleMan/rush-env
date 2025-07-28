@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::io::{self, Read};
+use std::io::{self, Read, stdout};
 
 /// 终端气泡注释输出工具，支持自动换行、视觉居中、中文emoji宽度处理。
 #[derive(Parser, Debug)]
@@ -31,8 +31,6 @@ fn main() -> color_eyre::Result<()> {
         content = content.trim_end().to_string(); // 去掉末尾多余空行
     }
 
-    let mut buf = String::new();
-    rush_say::say_section(&mut buf, &content, cli.width, cli.padding)?;
-    println!("{buf}");
+    rush_say::say_section(&mut stdout(), &content, cli.width, cli.padding)?;
     Ok(())
 }

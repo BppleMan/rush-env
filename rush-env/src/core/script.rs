@@ -5,7 +5,7 @@ use crate::core::script::function::FunctionScript;
 use crate::core::script::raw::RawScript;
 use crate::core::script::source::SourceScript;
 use crate::core::script::var::VarScript;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
 use tracing::warn;
@@ -57,15 +57,15 @@ impl<'de> Deserialize<'de> for Scripts {
     }
 }
 
-impl Visitor for Script {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Script {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         match self {
-            Script::Alias(alias) => alias.visit(context),
-            Script::Eval(eval) => eval.visit(context),
-            Script::Export(export) => export.visit(context),
-            Script::Function(function) => function.visit(context),
-            Script::Raw(raw) => raw.visit(context),
-            Script::Source(source) => match source.visit(context) {
+            Script::Alias(alias) => alias.visit(context, writer),
+            Script::Eval(eval) => eval.visit(context, writer),
+            Script::Export(export) => export.visit(context, writer),
+            Script::Function(function) => function.visit(context, writer),
+            Script::Raw(raw) => raw.visit(context, writer),
+            Script::Source(source) => match source.visit(context, writer) {
                 Ok(()) => Ok(()),
                 Err(VisitorError::SourceFileNotExist(file)) => {
                     warn!("Source file {} does not exist", file);
@@ -73,16 +73,16 @@ impl Visitor for Script {
                 }
                 Err(e) => Err(e),
             },
-            Script::Var(var) => var.visit(context),
+            Script::Var(var) => var.visit(context, writer),
             Script::None => Ok(()),
         }
     }
 }
 
-impl Visitor for Scripts {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Scripts {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         for script in &self.0 {
-            script.visit(context)?;
+            script.visit(context, writer)?;
         }
         Ok(())
     }

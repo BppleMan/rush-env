@@ -1,7 +1,6 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -20,16 +19,16 @@ impl FunctionScript {
     }
 }
 
-impl Visitor for FunctionScript {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for FunctionScript {
+    fn visit<'a>(&'a self, _context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
-        writeln!(context.script, "function {} {{", self.name)?;
+        writeln!(writer, "function {} {{", self.name)?;
         // let lines = self.body.trim_start_matches('\n').trim_end();
         let body = re_indent(&self.body, "    ");
-        writeln!(context.script, "{body}")?;
-        writeln!(context.script, "}}")?;
+        writeln!(writer, "{body}")?;
+        writeln!(writer, "}}")?;
         Ok(())
     }
 }

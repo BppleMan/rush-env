@@ -1,25 +1,19 @@
 use crate::core::path::Path;
+use rush_say::Section;
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Default, Debug)]
-pub struct VisitorContext<'a> {
+pub struct Visitor<'a> {
+    pub rush_dir: PathBuf,
+    pub section: Section,
     pub paths: Vec<&'a Path>,
-    pub script: String,
+    pub plugin_work_dirs: Vec<&'a str>,
 }
 
-pub trait Visitor {
-    fn visit<'a>(&'a self, _context: &mut VisitorContext<'a>) -> Result<(), VisitorError>;
+pub trait Visit {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError>;
 }
-
-// pub trait Render {
-//     fn render_script<W: Write>(&self, _output: &mut W) -> Result<(), VisitorError>;
-// }
-//
-// pub trait CollectPath {
-//     fn collect_path<'a, 'b>(&'a self, _paths: &'b mut Vec<&'a Path>) -> Result<(), VisitorError>
-//     where
-//         'a: 'b;
-// }
 
 #[derive(Debug, Error)]
 pub enum VisitorError {
@@ -37,4 +31,7 @@ pub enum VisitorError {
 
     #[error(transparent)]
     FmtError(#[from] std::fmt::Error),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 }

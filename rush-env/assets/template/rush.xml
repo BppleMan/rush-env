@@ -1,16 +1,13 @@
 <rush>
     <proxy>
-        <host>127.0.0.1</host>
-        <http_port>6152</http_port>
-        <socks_port>6153</socks_port>
         <scripts>
-            <var name="http_proxy">http://${proxy_host}:${http_proxy_port}</var>
-            <var name="https_proxy">https://${proxy_host}:${http_proxy_port}</var>
-            <var name="all_proxy">socks5://${proxy_host}:${socks_proxy_port}</var>
+            <var name="HTTP_PROXY">http://127.0.0.1:7890</var>
+            <var name="HTTPS_PROXY">http://127.0.0.1:7890</var>
+            <var name="ALL_PROXY">socks5://127.0.0.1:7891</var>
             <function name="pr">
-                HTTP_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
-                HTTPS_PROXY="http://${PROXY_HOST}:${HTTP_PROXY_PORT}" \
-                ALL_PROXY="socks5://${PROXY_HOST}:${SOCKS_PROXY_PORT}" \
+                HTTP_PROXY=${HTTP_PROXY} \
+                HTTPS_PROXY=${HTTPS_PROXY} \
+                ALL_PROXY=${ALL_PROXY} \
                 $@
             </function>
         </scripts>

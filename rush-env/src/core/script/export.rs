@@ -1,7 +1,6 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,7 +26,7 @@ impl ExportScript {
         "<export name>"
     }
 
-    pub fn export(name: impl AsRef<str>, value: impl AsRef<str>, script: &mut String) -> Result<(), VisitorError> {
+    pub fn export(name: impl AsRef<str>, value: impl AsRef<str>, buf: &mut impl std::io::Write) -> Result<(), VisitorError> {
         let name = name.as_ref();
         let value = value.as_ref();
         if name.to_uppercase() == "PATH" {
@@ -36,16 +35,16 @@ impl ExportScript {
         unsafe {
             std::env::set_var(name, value);
         }
-        writeln!(script, r#"export {name} = "{value}""#)?;
+        writeln!(buf, r#"export {name}="{value}""#)?;
         Ok(())
     }
 }
 
-impl Visitor for ExportScript {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for ExportScript {
+    fn visit<'a>(&'a self, _context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
-        Self::export(&self.name, &self.value, &mut context.script)
+        Self::export(&self.name, &self.value, writer)
     }
 }
