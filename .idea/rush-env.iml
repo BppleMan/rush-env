@@ -5,14 +5,15 @@
       <sourceFolder url="file://$MODULE_DIR$/rush-lib/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rush-var/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rush-say/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rush-env/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rush-env/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rush-env/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/rush-lib/target" />
       <excludeFolder url="file://$MODULE_DIR$/rush/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
-      <excludeFolder url="file://$MODULE_DIR$/assets/dotfiles" />
-      <excludeFolder url="file://$MODULE_DIR$/assets/dotfiles/.idea" />
-      <excludeFolder url="file://$MODULE_DIR$/assets/dotfiles/zo_data" />
+      <excludeFolder url="file://$MODULE_DIR$/rush-env/assets/dotfiles" />
+      <excludeFolder url="file://$MODULE_DIR$/rush-env/assets/dotfiles/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/rush-env/assets/dotfiles/zo_data" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

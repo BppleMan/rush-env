@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "rush-say","rush-var"]
+members = ["rush-env", "rush-say", "rush-var"]
 
 [workspace.package]
 name = "rush-env"
@@ -26,32 +26,3 @@ which = { version = "8.0.0" }
 tracing = { version = "0.1.41", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-appender = { version = "0.2.3", default-features = false }
-
-[package]
-name = "rush-env"
-version.workspace = true
-edition.workspace = true
-description.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
-default-run = "rush"
-
-[[bin]]
-name = "rush"
-path = "src/main.rs"
-
-[dependencies]
-rush-var = { path = "rush-var" }
-
-serde.workspace = true
-quick-xml.workspace = true
-#tokio.workspace = true
-thiserror.workspace = true
-color-eyre.workspace = true
-derive_more.workspace = true
-which.workspace = true
-clap.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-tracing-appender.workspace = true

@@ -1,4 +1,4 @@
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -45,16 +45,16 @@ impl Paths {
     }
 }
 
-impl Visitor for Path {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Path {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, _writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         self.export()?;
         context.paths.push(self);
         Ok(())
     }
 }
 
-impl Visitor for Paths {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Paths {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, _writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         self.export()?;
         context.paths.extend(self.0.iter());
         Ok(())

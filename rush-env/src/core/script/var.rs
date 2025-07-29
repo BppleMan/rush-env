@@ -1,8 +1,7 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -41,12 +40,12 @@ impl VarScript {
     }
 }
 
-impl Visitor for VarScript {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for VarScript {
+    fn visit<'a>(&'a self, _context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
-        writeln!(context.script, "{} = {}", self.name, self.value)?;
+        writeln!(writer, r#"{}="{}""#, self.name, self.value)?;
         Ok(())
     }
 }

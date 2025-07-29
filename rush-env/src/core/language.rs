@@ -2,7 +2,7 @@ use crate::core::condition::Condition;
 use crate::core::path::Paths;
 use crate::core::script::Scripts;
 use crate::core::script::export::ExportScript;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -32,26 +32,26 @@ impl Language {
     }
 }
 
-impl Visitor for Language {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Language {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
         if let Some(version) = &self.version {
             let name = format!("{}_VERSION", self.name.to_uppercase());
             let value = version.clone();
-            ExportScript::export(name, value, &mut context.script)?;
+            ExportScript::export(name, value, writer)?;
         }
-        self.paths.visit(context)?;
-        self.scripts.visit(context)?;
+        self.paths.visit(context, writer)?;
+        self.scripts.visit(context, writer)?;
         Ok(())
     }
 }
 
-impl Visitor for Languages {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Languages {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         for language in &self.0 {
-            language.visit(context)?;
+            language.visit(context, writer)?;
         }
         Ok(())
     }

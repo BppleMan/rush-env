@@ -1,0 +1,32 @@
+[package]
+name = "rush-env"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "rush"
+
+[[bin]]
+name = "rush"
+path = "src/main.rs"
+
+[dependencies]
+rush-var = { path = "../rush-var" }
+rush-say = { path = "../rush-say" }
+
+serde = { workspace = true, default-features = false, features = ["derive", "std"] }
+toml = { workspace = true, default-features = false, features = ["parse", "serde"] }
+quick-xml = { workspace = true, default-features = false, features = ["async-tokio", "serialize", "serde-types"] }
+thiserror = { workspace = true, default-features = false }
+color-eyre = { workspace = true, default-features = false, features = ["default"] }
+clap = { workspace = true, default-features = true }
+inquire = { workspace = true, default-features = false, features = ["console"] }
+include_dir = { workspace = true, default-features = false }
+tokio = { workspace = true, default-features = false, features = ["macros", "rt-multi-thread"] }
+derive_more = { workspace = true, default-features = false, features = ["as_ref", "deref", "deref_mut"] }
+which = { workspace = true }
+tracing = { workspace = true, default-features = false, features = ["attributes"] }
+#tracing-subscriber = { workspace = true, features = ["env-filter"] }
+#tracing-appender = { workspace = true, default-features = false }

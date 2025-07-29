@@ -1,5 +1,4 @@
 **/.DS_Store
 /target
-assets/dotfiles
-
-**/rush.toml
+/rush.toml
+**/logs

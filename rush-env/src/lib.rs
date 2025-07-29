@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Once;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
+// use tracing_subscriber::EnvFilter;
+// use tracing_subscriber::layer::SubscriberExt;
+// use tracing_subscriber::util::SubscriberInitExt;
 
 pub mod config;
 pub mod core;
@@ -27,12 +27,12 @@ pub fn init_backtrace() {
     });
 }
 
-pub fn init_log(base_dir: impl AsRef<Path>) {
-    INITIALIZED_LOG.call_once(|| {
-        let filter = EnvFilter::new("info").add_directive("rush-env=trace".parse().unwrap());
-        let file_appender = tracing_appender::rolling::hourly(base_dir.as_ref().join("logs"), "convertor.log");
-        let file_layer = tracing_subscriber::fmt::layer().with_writer(file_appender);
-        // let stdout_layer = tracing_subscriber::fmt::layer().pretty();
-        tracing_subscriber::registry().with(filter).with(file_layer).init();
-    });
-}
+// pub fn init_log(base_dir: impl AsRef<Path>) {
+//     INITIALIZED_LOG.call_once(|| {
+//         let filter = EnvFilter::new("info").add_directive("rush-env=trace".parse().unwrap());
+//         let file_appender = tracing_appender::rolling::hourly(base_dir.as_ref().join("logs"), "convertor.log");
+//         let file_layer = tracing_subscriber::fmt::layer().with_writer(file_appender);
+//         // let stdout_layer = tracing_subscriber::fmt::layer().pretty();
+//         tracing_subscriber::registry().with(filter).with(file_layer).init();
+//     });
+// }

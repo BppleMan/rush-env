@@ -1,7 +1,7 @@
 use crate::core::condition::Condition;
 use crate::core::script::Scripts;
 use crate::core::script::export::ExportScript;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -27,23 +27,24 @@ impl Plugin {
     }
 }
 
-impl Visitor for Plugin {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Plugin {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
         let name = format!("{}_DIR", self.name.to_uppercase());
         let value = self.work_dir.clone();
-        ExportScript::export(name, value, &mut context.script)?;
-        self.scripts.visit(context)?;
+        ExportScript::export(name, value, writer)?;
+        self.scripts.visit(context, writer)?;
         Ok(())
     }
 }
 
-impl Visitor for Plugins {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for Plugins {
+    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         for plugin in self.0.iter() {
-            plugin.visit(context)?;
+            context.plugin_work_dirs.push(&plugin.work_dir);
+            plugin.visit(context, writer)?;
         }
         Ok(())
     }

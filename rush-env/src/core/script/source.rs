@@ -1,8 +1,7 @@
 use crate::core::condition::Condition;
-use crate::visitor::{Visitor, VisitorContext, VisitorError};
+use crate::visitor::{Visit, Visitor, VisitorError};
 use rush_var::expand_env_vars;
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 use std::path::PathBuf;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -20,8 +19,8 @@ impl SourceScript {
     }
 }
 
-impl Visitor for SourceScript {
-    fn visit<'a>(&'a self, context: &mut VisitorContext<'a>) -> Result<(), VisitorError> {
+impl Visit for SourceScript {
+    fn visit<'a>(&'a self, _context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
@@ -30,7 +29,7 @@ impl Visitor for SourceScript {
         if !file.is_file() {
             return Err(VisitorError::SourceFileNotExist(self.file.clone()));
         }
-        writeln!(context.script, "source {}", self.file)?;
+        writeln!(writer, "source {}", self.file)?;
         Ok(())
     }
 }
