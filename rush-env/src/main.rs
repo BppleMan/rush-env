@@ -36,6 +36,7 @@ fn main() -> Result<()> {
     match cli.sub_cmd {
         None => {
             let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
+            println!("{rush:#?}");
             let mut context = Visitor {
                 rush_dir,
                 section: Section::new(64, 2),
@@ -43,7 +44,7 @@ fn main() -> Result<()> {
             };
             rush.visit(&mut context, &mut stdout())?;
         }
-        Some(cmd) => cmd.execute(&executable)?,
+        Some(cmd) => cmd.execute(&rush_dir, &executable)?,
     }
 
     Ok(())
