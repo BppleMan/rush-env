@@ -1,6 +1,7 @@
 use crate::core::condition::Condition;
-use crate::core::script::Scripts;
+use crate::core::installer::{Install, Installer};
 use crate::core::script::export::ExportScript;
+use crate::core::script::{Script, Scripts};
 use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -15,6 +16,8 @@ pub struct Plugin {
     #[serde(default)]
     pub condition: Condition,
     pub scripts: Scripts,
+    #[serde(default)]
+    pub install: Install,
 }
 
 #[derive(Default, Debug, Clone, Serialize)]

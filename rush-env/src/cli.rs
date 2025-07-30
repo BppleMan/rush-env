@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Parser)]
 pub struct Cli {
-    pub rush_dir: PathBuf,
+    pub rush_dir: Option<PathBuf>,
 
     #[command(subcommand)]
     pub sub_cmd: Option<SubCmd>,
@@ -47,7 +47,7 @@ impl SubCmd {
                 if matches!(e.kind(), ErrorKind::AlreadyExists) {
                     eprintln!("Warning: .zshrc already exists.");
                 }
-                Err(e)
+                Err(e)?
             }
         }
     }

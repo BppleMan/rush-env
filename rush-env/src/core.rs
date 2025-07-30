@@ -7,3 +7,4 @@ pub mod language;
 pub mod condition;
 pub mod path;
 pub mod tool;
+mod installer;
