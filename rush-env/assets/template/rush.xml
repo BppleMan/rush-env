@@ -15,7 +15,6 @@
     <plugins>
         <plugin name="antidote" work_dir="${RUSH_DIR}/antidote">
             <scripts>
-                <export name="ZDOTDIR">${ANTIDOTE_DIR}/zdotdir</export>
                 <source>${ANTIDOTE_DIR}/.antidote/antidote.zsh</source>
                 <raw>pr antidote load</raw>
             </scripts>
@@ -25,6 +24,9 @@
                     <dest>${RUSH_DIR}/kommand</dest>
                     <branch>main</branch>
                 </git>
+                <file>
+
+                </file>
             </install>
         </plugin>
         <plugin name="starship" work_dir="${RUSH_DIR}/starship">
