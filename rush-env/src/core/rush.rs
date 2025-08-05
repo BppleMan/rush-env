@@ -1,10 +1,19 @@
-use crate::core::language::Languages;
-use crate::core::plugin::Plugins;
-use crate::core::proxy::Proxy;
-use crate::core::script::Scripts;
-use crate::core::tool::Tools;
 use crate::visitor::{Visit, Visitor, VisitorError};
+use language::Languages;
+use plugin::Plugins;
+use proxy::Proxy;
+use script::Scripts;
 use serde::{Deserialize, Serialize};
+use tool::Tools;
+
+pub mod platform;
+pub mod plugin;
+pub mod proxy;
+pub mod script;
+pub mod language;
+pub mod condition;
+pub mod path;
+pub mod tool;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

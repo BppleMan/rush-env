@@ -1,4 +1,4 @@
-use crate::core::path::Path;
+use crate::core::rush::path::Path;
 use rush_say::Section;
 use std::path::PathBuf;
 use thiserror::Error;

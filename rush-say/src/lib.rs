@@ -9,7 +9,10 @@
 //! say_section(&mut stdout(), "你好，Rush!\n可自动居中、自动分行。", 48, 2).unwrap();
 //! ```
 
+mod border;
+pub use border::{BorderStyle, BubbleStyle};
 mod section;
+use crate::border::CommentStyle;
 pub use section::*;
 
 /// 输出漂亮的注释框气泡（支持自动分行、视觉居中、中文/emoji等宽）
@@ -17,19 +20,25 @@ pub use section::*;
 /// - `writer`: 输出目标（如 String/stdout）
 /// - `content`: 任意多行字符串
 /// - `width`/`padding`：可选参数（默认48/2）可自定义
-pub fn say_section(writer: &mut impl std::io::Write, content: &str, width: usize, padding: usize) -> std::io::Result<()> {
-    let max_line_width = width - 2 - padding * 2;
-    let border = format!("#{}#", "-".repeat(width - 2));
-    writeln!(writer, "{border}")?;
+/// - `border_style`: 边框样式（可选，默认注释风格）
+pub fn say_section_with_style(writer: &mut impl std::io::Write, content: &str, style: &BubbleStyle) -> std::io::Result<()> {
+    let max_line_width = style.width - 2 - style.padding * 2;
+    let top_border = format!(
+        "{}{}{}",
+        style.border_style.top_left,
+        style.border_style.horizontal.to_string().repeat(style.width - 2),
+        style.border_style.top_right
+    );
+    writeln!(writer, "{top_border}")?;
 
     let mut chars = content.chars().peekable();
     loop {
         while chars.peek().is_some() && *chars.peek().unwrap() == '\n' {
-            write!(writer, "#")?;
-            for _ in 0..(width - 2) {
-                write!(writer, " ")?;
+            write!(writer, "{}", style.border_style.vertical)?;
+            for _ in 0..(style.width - 2) {
+                write!(writer, "{}", style.border_style.vertical)?;
             }
-            writeln!(writer, "#")?;
+            writeln!(writer, "{}", style.border_style.vertical)?;
             chars.next();
         }
         if chars.peek().is_none() {
@@ -53,9 +62,9 @@ pub fn say_section(writer: &mut impl std::io::Write, content: &str, width: usize
             chars.next();
         }
         let spaces = max_line_width - visual;
-        let left = padding + spaces / 2;
-        let right = padding + (spaces - spaces / 2);
-        write!(writer, "#")?;
+        let left = style.padding + spaces / 2;
+        let right = style.padding + (spaces - spaces / 2);
+        write!(writer, "{}", style.border_style.vertical)?;
         for _ in 0..left {
             write!(writer, " ")?;
         }
@@ -63,10 +72,31 @@ pub fn say_section(writer: &mut impl std::io::Write, content: &str, width: usize
         for _ in 0..right {
             write!(writer, " ")?;
         }
-        writeln!(writer, "#")?;
+        writeln!(writer, "{}", style.border_style.vertical)?;
     }
-    writeln!(writer, "{border}")?;
+    let bottom_border = format!(
+        "{}{}{}",
+        style.border_style.bottom_left,
+        style.border_style.horizontal.to_string().repeat(style.width - 2),
+        style.border_style.bottom_right
+    );
+    writeln!(writer, "{bottom_border}")?;
     Ok(())
+}
+
+pub fn say_section(writer: &mut impl std::io::Write, content: &str, width: usize, padding: usize) -> std::io::Result<()> {
+    // let style = BubbleStyle {
+    //     width,
+    //     padding,
+    //     border_style: BorderStyle::default(),
+    // };
+    let section = Section::builder()
+        .width(width)
+        .padding(padding)
+        .border_style(BorderStyle::default())
+        .comment_style(CommentStyle::default())
+        .build();
+    section.say(writer, content)
 }
 
 /// 视觉宽度换算（可随时自定义规则）

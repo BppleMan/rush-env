@@ -20,6 +20,8 @@ fn main() -> Result<()> {
 
     let executable = Path::new(&std::env::args().next().ok_or_eyre("Executable name not found")?).canonicalize()?;
     println!("# {}", executable.display());
+    // let cli = Cli::parse();
+    // println!("{cli:#?}");
 
     #[cfg(debug_assertions)]
     let rush_dir = unsafe {

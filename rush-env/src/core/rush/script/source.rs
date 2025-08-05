@@ -1,4 +1,4 @@
-use crate::core::condition::Condition;
+use crate::core::rush::condition::Condition;
 use crate::visitor::{Visit, Visitor, VisitorError};
 use rush_var::expand_env_vars;
 use serde::{Deserialize, Serialize};
