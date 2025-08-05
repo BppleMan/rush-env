@@ -7,7 +7,7 @@ use color_eyre::eyre::{OptionExt, WrapErr};
 use rush_env::core::rush::Rush;
 use rush_env::visitor::{Visit, Visitor};
 use rush_env::{init_backtrace, init_base_dir};
-use rush_say::Section;
+use rush_say::Bubble;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 
@@ -20,6 +20,8 @@ fn main() -> Result<()> {
 
     let executable = Path::new(&std::env::args().next().ok_or_eyre("Executable name not found")?).canonicalize()?;
     println!("# {}", executable.display());
+    // let cli = Cli::parse();
+    // println!("{cli:#?}");
 
     #[cfg(debug_assertions)]
     let rush_dir = unsafe {
@@ -30,8 +32,13 @@ fn main() -> Result<()> {
     #[cfg(not(debug_assertions))]
     let rush_dir = PathBuf::new(std::env::var("RUSH_DIR").wrap_err("RUSH_DIR environment variable must be set")?);
 
-    let cli = Cli::parse();
-    println!("{cli:#?}");
+    let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
+    let mut context = Visitor {
+        rush_dir,
+        section: Bubble::new(64, 2),
+        ..Default::default()
+    };
+    rush.visit(&mut context, &mut stdout())?;
 
     match cli.sub_cmd {
         None => {

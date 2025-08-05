@@ -18,6 +18,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum SubCmd {
+    ZshEnv,
     Init,
     Install,
 }

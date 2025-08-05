@@ -1,4 +1,4 @@
-use crate::core::platform::Platform;
+use crate::core::rush::platform::Platform;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
 
