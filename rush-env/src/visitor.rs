@@ -1,12 +1,12 @@
 use crate::core::rush::path::Path;
-use rush_say::Section;
+use rush_say::Bubble;
 use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Default, Debug)]
 pub struct Visitor<'a> {
     pub rush_dir: PathBuf,
-    pub section: Section,
+    pub section: Bubble,
     pub paths: Vec<&'a Path>,
     pub plugin_work_dirs: Vec<&'a str>,
 }

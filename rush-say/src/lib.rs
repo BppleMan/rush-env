@@ -11,9 +11,11 @@
 
 mod border;
 pub use border::{BorderStyle, BubbleStyle};
-mod section;
+mod bubble;
+mod layout;
+
 use crate::border::CommentStyle;
-pub use section::*;
+pub use bubble::*;
 
 /// 输出漂亮的注释框气泡（支持自动分行、视觉居中、中文/emoji等宽）
 ///
@@ -90,26 +92,13 @@ pub fn say_section(writer: &mut impl std::io::Write, content: &str, width: usize
     //     padding,
     //     border_style: BorderStyle::default(),
     // };
-    let section = Section::builder()
+    let section = Bubble::builder()
         .width(width)
         .padding(padding)
         .border_style(BorderStyle::default())
         .comment_style(CommentStyle::default())
         .build();
     section.say(writer, content)
-}
-
-/// 视觉宽度换算（可随时自定义规则）
-fn visual_width_char(ch: char) -> usize {
-    match ch {
-        '\u{4e00}'..='\u{9fff}'   // CJK汉字
-        | '\u{3000}'..='\u{303f}' // CJK标点
-        | '\u{3040}'..='\u{30ff}' // 日文
-        | '\u{ff00}'..='\u{ffef}' // 全角
-        => 2,
-        '\u{1f300}'..='\u{1f6ff}' | '\u{1f900}'..='\u{1f9ff}' => 2, // emoji
-        _ => 1,
-    }
 }
 
 #[cfg(test)]

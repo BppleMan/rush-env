@@ -1,25 +1,25 @@
 use crate::border::{BorderStyle, BubbleStyle, CommentStyle};
-use crate::visual_width_char;
+use crate::layout::Align;
 
-#[derive(Debug, Clone, Default)]
-pub struct Section {
+#[derive(Default, Debug, Clone)]
+pub struct Bubble {
     pub style: BubbleStyle,
     pub comment_style: Option<CommentStyle>,
+    pub align: Align,
 }
 
-impl Section {
-    pub fn new(width: usize, padding: usize, border_style: BorderStyle, comment_style: Option<CommentStyle>) -> Self {
-        Section {
-            style: BubbleStyle { width, padding, border_style },
-            comment_style,
-        }
-    }
+impl Bubble {
+    // pub fn new(width: usize, padding: usize, border_style: BorderStyle, comment_style: Option<CommentStyle>) -> Self {
+    //     Bubble {
+    //         style: BubbleStyle { width, padding, border_style },
+    //         comment_style,
+    //     }
+    // }
 
     pub fn builder() -> SectionBuilder {
         SectionBuilder::default()
     }
 
-    /// 输出气泡内容，自动加注释前缀/后缀（如果有）
     pub fn say(&self, writer: &mut impl std::io::Write, content: impl AsRef<str>) -> std::io::Result<()> {
         let max_line_width = self.style.width - 2 - self.style.padding * 2;
         let top_border = format!(
@@ -91,6 +91,19 @@ impl Section {
     }
 }
 
+/// 视觉宽度换算（可随时自定义规则）
+fn visual_width_char(ch: char) -> usize {
+    match ch {
+        '\u{4e00}'..='\u{9fff}'   // CJK汉字
+        | '\u{3000}'..='\u{303f}' // CJK标点
+        | '\u{3040}'..='\u{30ff}' // 日文
+        | '\u{ff00}'..='\u{ffef}' // 全角
+        => 2,
+        '\u{1f300}'..='\u{1f6ff}' | '\u{1f900}'..='\u{1f9ff}' => 2, // emoji
+        _ => 1,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SectionBuilder {
     width: usize,
@@ -127,8 +140,8 @@ impl SectionBuilder {
         self.comment_style = Some(comment_style);
         self
     }
-    pub fn build(self) -> Section {
-        Section {
+    pub fn build(self) -> Bubble {
+        Bubble {
             style: BubbleStyle {
                 width: self.width,
                 padding: self.padding,
