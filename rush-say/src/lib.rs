@@ -13,6 +13,9 @@ mod border;
 pub use border::{BorderStyle, BubbleStyle};
 mod bubble;
 mod layout;
+mod bubble_builder;
+mod widget;
+mod text;
 
 use crate::border::CommentStyle;
 pub use bubble::*;
@@ -24,65 +27,65 @@ pub use bubble::*;
 /// - `width`/`padding`：可选参数（默认48/2）可自定义
 /// - `border_style`: 边框样式（可选，默认注释风格）
 pub fn say_section_with_style(writer: &mut impl std::io::Write, content: &str, style: &BubbleStyle) -> std::io::Result<()> {
-    let max_line_width = style.width - 2 - style.padding * 2;
-    let top_border = format!(
-        "{}{}{}",
-        style.border_style.top_left,
-        style.border_style.horizontal.to_string().repeat(style.width - 2),
-        style.border_style.top_right
-    );
-    writeln!(writer, "{top_border}")?;
-
-    let mut chars = content.chars().peekable();
-    loop {
-        while chars.peek().is_some() && *chars.peek().unwrap() == '\n' {
-            write!(writer, "{}", style.border_style.vertical)?;
-            for _ in 0..(style.width - 2) {
-                write!(writer, "{}", style.border_style.vertical)?;
-            }
-            writeln!(writer, "{}", style.border_style.vertical)?;
-            chars.next();
-        }
-        if chars.peek().is_none() {
-            break;
-        }
-        let mut current = String::new();
-        let mut visual = 0;
-        while let Some(&ch) = chars.peek() {
-            if ch == '\n' {
-                break;
-            }
-            let ch_width = visual_width_char(ch);
-            if visual + ch_width > max_line_width {
-                break;
-            }
-            visual += ch_width;
-            current.push(ch);
-            chars.next();
-        }
-        if chars.peek() == Some(&'\n') {
-            chars.next();
-        }
-        let spaces = max_line_width - visual;
-        let left = style.padding + spaces / 2;
-        let right = style.padding + (spaces - spaces / 2);
-        write!(writer, "{}", style.border_style.vertical)?;
-        for _ in 0..left {
-            write!(writer, " ")?;
-        }
-        write!(writer, "{current}")?;
-        for _ in 0..right {
-            write!(writer, " ")?;
-        }
-        writeln!(writer, "{}", style.border_style.vertical)?;
-    }
-    let bottom_border = format!(
-        "{}{}{}",
-        style.border_style.bottom_left,
-        style.border_style.horizontal.to_string().repeat(style.width - 2),
-        style.border_style.bottom_right
-    );
-    writeln!(writer, "{bottom_border}")?;
+    // let max_line_width = style.width - 2 - style.padding * 2;
+    // let top_border = format!(
+    //     "{}{}{}",
+    //     style.border_style.top_left,
+    //     style.border_style.horizontal.to_string().repeat(style.width - 2),
+    //     style.border_style.top_right
+    // );
+    // writeln!(writer, "{top_border}")?;
+    //
+    // let mut chars = content.chars().peekable();
+    // loop {
+    //     while chars.peek().is_some() && *chars.peek().unwrap() == '\n' {
+    //         write!(writer, "{}", style.border_style.vertical)?;
+    //         for _ in 0..(style.width - 2) {
+    //             write!(writer, "{}", style.border_style.vertical)?;
+    //         }
+    //         writeln!(writer, "{}", style.border_style.vertical)?;
+    //         chars.next();
+    //     }
+    //     if chars.peek().is_none() {
+    //         break;
+    //     }
+    //     let mut current = String::new();
+    //     let mut visual = 0;
+    //     while let Some(&ch) = chars.peek() {
+    //         if ch == '\n' {
+    //             break;
+    //         }
+    //         let ch_width = visual_width_char(ch);
+    //         if visual + ch_width > max_line_width {
+    //             break;
+    //         }
+    //         visual += ch_width;
+    //         current.push(ch);
+    //         chars.next();
+    //     }
+    //     if chars.peek() == Some(&'\n') {
+    //         chars.next();
+    //     }
+    //     let spaces = max_line_width - visual;
+    //     let left = style.padding + spaces / 2;
+    //     let right = style.padding + (spaces - spaces / 2);
+    //     write!(writer, "{}", style.border_style.vertical)?;
+    //     for _ in 0..left {
+    //         write!(writer, " ")?;
+    //     }
+    //     write!(writer, "{current}")?;
+    //     for _ in 0..right {
+    //         write!(writer, " ")?;
+    //     }
+    //     writeln!(writer, "{}", style.border_style.vertical)?;
+    // }
+    // let bottom_border = format!(
+    //     "{}{}{}",
+    //     style.border_style.bottom_left,
+    //     style.border_style.horizontal.to_string().repeat(style.width - 2),
+    //     style.border_style.bottom_right
+    // );
+    // writeln!(writer, "{bottom_border}")?;
     Ok(())
 }
 
@@ -111,8 +114,8 @@ mod tests {
         let mut buf = Cursor::new(Vec::new());
         say_section(&mut buf, "简单说明", 48, 2).unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected = r#"
+#----------------------------------------------#
 #                   简单说明                   #
 #----------------------------------------------#
 "#;
@@ -124,8 +127,8 @@ r#"#----------------------------------------------#
         let mut buf = Cursor::new(Vec::new());
         say_section(&mut buf, "标题\n副标题\n\n多行说明", 48, 2).unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected = r#"
+#----------------------------------------------#
 #                     标题                     #
 #                    副标题                    #
 #                                              #
@@ -146,8 +149,8 @@ r#"#----------------------------------------------#
         )
         .unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected = r#"
+#----------------------------------------------#
 #  This is a long, long, long, long sentence   #
 #        that should auto wrap nicely.         #
 #----------------------------------------------#
@@ -160,8 +163,8 @@ r#"#----------------------------------------------#
         let mut buf = Cursor::new(Vec::new());
         say_section(&mut buf, "Rush工具支持emoji🎉，中文分行测试：极其长的一行需要分包到下行", 48, 2).unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected = r#"
+#----------------------------------------------#
 #  Rush工具支持emoji🎉，中文分行测试：极其长   #
 #             的一行需要分包到下行             #
 #----------------------------------------------#
@@ -174,8 +177,8 @@ r#"#----------------------------------------------#
         let mut buf = Cursor::new(Vec::new());
         say_section(&mut buf, "全角：ＡＢＣＤＥＦ, ABCDEF", 48, 2).unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected = r#"
+#----------------------------------------------#
 #          全角：ＡＢＣＤＥＦ, ABCDEF          #
 #----------------------------------------------#
 "#;
@@ -193,8 +196,8 @@ r#"#----------------------------------------------#
         )
         .unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected =r#"
+#----------------------------------------------#
 #  本行超长会被自动换行：这是一个很长很长很长  #
 #  很长很长很长很长很长很长很长的句子，用来测  #
 #                  试自动包裹                  #
@@ -208,8 +211,8 @@ r#"#----------------------------------------------#
         let mut buf = Cursor::new(Vec::new());
         say_section(&mut buf, "第一行\n\n\n最后一行", 48, 2).unwrap();
         #[rustfmt::skip]
-        let expected =
-r#"#----------------------------------------------#
+        let expected = r#"
+#----------------------------------------------#
 #                    第一行                    #
 #                                              #
 #                                              #

@@ -1,4 +1,5 @@
 use crate::border::{BorderStyle, BubbleStyle, CommentStyle};
+use crate::bubble_builder::BubbleBuilder;
 use crate::layout::Align;
 
 #[derive(Default, Debug, Clone)]
@@ -16,8 +17,8 @@ impl Bubble {
     //     }
     // }
 
-    pub fn builder() -> SectionBuilder {
-        SectionBuilder::default()
+    pub fn builder() -> BubbleBuilder {
+        BubbleBuilder::default()
     }
 
     pub fn say(&self, writer: &mut impl std::io::Write, content: impl AsRef<str>) -> std::io::Result<()> {
@@ -82,13 +83,10 @@ impl Bubble {
         writeln!(writer, "{bottom_border}")?;
         Ok(())
     }
+}
 
-    pub fn style(&self) -> &BubbleStyle {
-        &self.style
-    }
-    pub fn comment_style(&self) -> Option<&CommentStyle> {
-        self.comment_style.as_ref()
-    }
+fn visual_width_str(s: impl AsRef<str>) -> usize {
+    s.as_ref().chars().map(visual_width_char).sum()
 }
 
 /// 视觉宽度换算（可随时自定义规则）
@@ -101,53 +99,5 @@ fn visual_width_char(ch: char) -> usize {
         => 2,
         '\u{1f300}'..='\u{1f6ff}' | '\u{1f900}'..='\u{1f9ff}' => 2, // emoji
         _ => 1,
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SectionBuilder {
-    width: usize,
-    padding: usize,
-    border_style: BorderStyle,
-    comment_style: Option<CommentStyle>,
-}
-
-impl Default for SectionBuilder {
-    fn default() -> Self {
-        SectionBuilder {
-            width: 48,
-            padding: 2,
-            border_style: BorderStyle::default(),
-            comment_style: None,
-        }
-    }
-}
-
-impl SectionBuilder {
-    pub fn width(mut self, width: usize) -> Self {
-        self.width = width;
-        self
-    }
-    pub fn padding(mut self, padding: usize) -> Self {
-        self.padding = padding;
-        self
-    }
-    pub fn border_style(mut self, border_style: BorderStyle) -> Self {
-        self.border_style = border_style;
-        self
-    }
-    pub fn comment_style(mut self, comment_style: CommentStyle) -> Self {
-        self.comment_style = Some(comment_style);
-        self
-    }
-    pub fn build(self) -> Bubble {
-        Bubble {
-            style: BubbleStyle {
-                width: self.width,
-                padding: self.padding,
-                border_style: self.border_style,
-            },
-            comment_style: self.comment_style,
-        }
     }
 }
