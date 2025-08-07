@@ -1,5 +1,10 @@
 mod text;
 mod container;
+mod border_style;
+
+pub use border_style::BorderStyle;
+pub use container::Container;
+pub use text::Text;
 
 pub trait Widget {
     fn layout(&mut self, constraints: Constraints) -> Size;
@@ -46,6 +51,8 @@ pub fn visual_width_char(ch: char) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use crate::widget::border_style::BorderStyle;
+    use crate::widget::container::Container;
     use crate::widget::text::Text;
     use crate::widget::{Align, Constraints, Widget};
     use std::io::{Cursor, Write};
@@ -58,7 +65,7 @@ mod tests {
     }
 
     #[test]
-    fn test_render() {
+    fn test_render_text() {
         let mut text = Text::new("11223344556677889900").set_align(Align::Center);
         let size = text.layout(Constraints {
             render_width: 10,
@@ -68,6 +75,25 @@ mod tests {
         for row in 0..size.height {
             text.render(&mut output, row).unwrap();
             writeln!(&mut output).unwrap();
+        }
+        println!("{}", String::from_utf8(output.into_inner()).unwrap());
+    }
+
+    #[test]
+    fn test_render_container() {
+        let text = Text::new("001122334455667788990011223344556677889900112233445566778899").set_align(Align::Center);
+        let mut container = Container::new(text)
+            .set_align(Align::Center)
+            .set_margin(1)
+            .set_padding(10)
+            .set_border(BorderStyle::dashed_round());
+        let size = container.layout(Constraints {
+            render_width: 40,
+            wrap_width: 40,
+        });
+        let mut output = Cursor::new(vec![]);
+        for row in 0..size.height {
+            container.render(&mut output, row).unwrap();
         }
         println!("{}", String::from_utf8(output.into_inner()).unwrap());
     }

@@ -4,7 +4,7 @@ use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Text {
     pub content: String,
     pub graphemes: Vec<TextGrapheme>,
@@ -58,7 +58,6 @@ impl Text {
         let mut current_line: TextLine = TextLine::default();
         for grapheme in std::mem::take(&mut self.graphemes) {
             let grapheme_str = &self.content[grapheme.range.clone()];
-            println!("{grapheme_str:?}");
             match grapheme_str {
                 "\n" | "\r" | "\r\n" => {
                     lines.push(std::mem::take(&mut current_line));
@@ -79,6 +78,7 @@ impl Text {
 
 impl Widget for Text {
     fn layout(&mut self, constraints: Constraints) -> Size {
+        println!("{constraints:?}");
         self.lines = self.wrap_text(constraints.wrap_width);
         let width = self
             .lines
@@ -97,9 +97,9 @@ impl Widget for Text {
         let text = line.render(&self.content);
         let pad = self.size.width.saturating_sub(line.width);
         let (left, right) = match self.align {
+            Align::Center => (pad / 2, pad - (pad / 2)),
             Align::Left => (0, pad),
             Align::Right => (pad, 0),
-            Align::Center => (pad / 2, pad - (pad / 2)),
         };
         write!(writer, "{}{}{}", " ".repeat(left), text, " ".repeat(right))
     }
