@@ -1,15 +1,74 @@
-pub use constraints::Constraints;
-pub use size::Size;
+mod text;
+mod container;
 
-mod constraints;
-mod size;
+pub trait Widget {
+    fn layout(&mut self, constraints: Constraints) -> Size;
 
-pub trait Widget: Layout + Renderable {}
-
-pub trait Layout {
-    fn layout(&self, constraints: Constraints) -> Size;
+    fn render(&self, writer: &mut impl std::io::Write, row: usize) -> std::io::Result<()>;
 }
 
-pub trait Renderable {
-    fn render(&self, writer: &mut impl std::io::Write) -> std::io::Result<()>;
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Constraints {
+    pub render_width: usize,
+    pub wrap_width: usize,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Size {
+    pub width: usize,
+    pub height: usize,
+}
+
+#[derive(Default, Debug, Clone)]
+pub enum Align {
+    #[default]
+    Center,
+    Left,
+    Right,
+}
+
+pub fn visual_width_chars<'a>(chars: &[char]) -> usize {
+    chars.iter().copied().map(visual_width_char).sum()
+}
+
+/// 视觉宽度换算（可随时自定义规则）
+pub fn visual_width_char(ch: char) -> usize {
+    match ch {
+        '\u{4e00}'..='\u{9fff}'   // CJK汉字
+        | '\u{3000}'..='\u{303f}' // CJK标点
+        | '\u{3040}'..='\u{30ff}' // 日文
+        | '\u{ff00}'..='\u{ffef}' // 全角
+        => 2,
+        '\u{1f300}'..='\u{1f6ff}' | '\u{1f900}'..='\u{1f9ff}' => 2, // emoji
+        _ => 1,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::widget::text::Text;
+    use crate::widget::{Align, Constraints, Widget};
+    use std::io::{Cursor, Write};
+
+    #[test]
+    fn test_format_write() {
+        // let mut output = String::new();
+        // let _ = write!(&mut output, "{:>10}", "12345");
+        // println!("{output}");
+    }
+
+    #[test]
+    fn test_render() {
+        let mut text = Text::new("11223344556677889900").set_align(Align::Center);
+        let size = text.layout(Constraints {
+            render_width: 10,
+            wrap_width: 4,
+        });
+        let mut output = Cursor::new(vec![]);
+        for row in 0..size.height {
+            text.render(&mut output, row).unwrap();
+            writeln!(&mut output).unwrap();
+        }
+        println!("{}", String::from_utf8(output.into_inner()).unwrap());
+    }
 }
