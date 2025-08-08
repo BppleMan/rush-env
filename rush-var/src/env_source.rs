@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 /// # 用法示例
 /// ```rust
 /// use rush_var::expand_env;
-/// let env = [ ("FOO", "bar") ];
+/// let env: &[(&str, &str)] = &[("FOO", "bar")];
 /// let res = expand_env("$FOO", &env);
 /// assert_eq!(res, "bar");
 /// ```

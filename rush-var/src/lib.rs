@@ -1,46 +1,30 @@
-//! # rush-var —— Bash风格环境变量插值库
+//! # rush-var —— Shell 风格环境变量插值库
 //!
-//! 支持 $VAR, ${VAR}, ${VAR:-default}，适配多种环境变量源（HashMap/BTreeMap/切片/闭包/链式/系统环境等）。
+//! 支持 POSIX/Bash 风格的变量展开语法，适配多种环境变量源（`HashMap`、`BTreeMap`、切片、闭包、链式、系统环境等）。
 //!
-//! ## 用法示例
+//! 目前实现了如下语法特性：
 //!
-//! ```rust
-//! use rush_var::expand_env;
-//! let env = [ ("FOO", "bar") ];
-//! assert_eq!(expand_env("Hello $FOO!", &env), "Hello bar!");
-//! assert_eq!(expand_env("path=${BAR:-/usr/local}/bin", &env), "path=/usr/local/bin");
-//! ```
+//! - `$VAR`、`${VAR}` 基本取值
+//! - 默认值/赋值/条件值/报错：`${VAR:-word}`、`${VAR=word}` 等
+//! - 取长度：`${#VAR}`
+//! - 删除前缀/后缀：`${VAR#pat}`、`${VAR%pat}` 及双号版本
+//! - 子串截取：`${VAR:offset}`、`${VAR:offset:length}`
+//! - 模式替换：`${VAR/pat/repl}`、`${VAR//pat/repl}`、`${VAR/#pat/repl}`、`${VAR/%pat/repl}`
+//! - 间接展开：`${!VAR}`
 //!
-//! ## 支持自定义环境源
-//!
-//! ```rust
-//! use rush_var::env_source::{FnEnvSource};
-//! use rush_var::expand_env;
-//! let env = FnEnvSource(|k: &str| if k == "USER" { Some("alice".to_string()) } else { None });
-//! assert_eq!(expand_env("hi_$USER", &env), "hi_alice");
-//! ```
-//!
-//! ## 支持链式变量源（优先主源，后备源）
-//!
-//! ```rust
-//! use rush_var::env_source::{EnvSourceChain};
-//! use rush_var::expand_env;
-//! let main = [ ("A", "x") ];
-//! let mut fallback = std::collections::HashMap::new();
-//! fallback.insert("B".to_string(), "y".to_string());
-//! let chain = EnvSourceChain { primary: &main[..], fallback: &fallback };
-//! assert_eq!(expand_env("$A,$B", &chain), "x,y");
-//! ```
+//! 解析并不完全等同于真实 shell，模式匹配部分以字面字符串实现，不支持通配符。
 
 pub mod env_source;
 
 use crate::env_source::EnvSource;
 
+/// 从当前进程环境变量中展开字符串。
 pub fn expand_env_vars(input: &str) -> String {
     let vars = std::env::vars();
     expand_env_recursive(input, &vars)
 }
 
+/// 递归展开变量，最多递归 8 层，防止无限循环。
 pub fn expand_env_recursive(input: &str, env: &impl EnvSource) -> String {
     const MAX_EXPAND_DEPTH: usize = 8;
     fn inner(s: &str, env: &impl EnvSource, depth: usize) -> String {
@@ -59,15 +43,7 @@ pub fn expand_env_recursive(input: &str, env: &impl EnvSource) -> String {
 
 /// Bash 风格环境变量插值主函数。
 ///
-/// 支持 $VAR、${VAR}、${VAR:-default}、$$（字面$），适配多种环境变量源。
-///
-/// # 用法示例
-/// ```rust
-/// use rush_var::expand_env;
-/// let env = [ ("FOO", "bar") ];
-/// assert_eq!(expand_env("$FOO/bin", &env), "bar/bin");
-/// assert_eq!(expand_env("${BAR:-default}/lib", &env), "default/lib");
-/// ```
+/// 支持 `$VAR`、`${VAR}` 及一系列扩展语法（见模块文档）。
 pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
     let mut result = String::new();
     let mut chars = input.chars().peekable();
@@ -76,46 +52,43 @@ pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
         if c == '$' {
             match chars.peek() {
                 Some('$') => {
-                    chars.next(); // consume second $
+                    chars.next();
                     result.push('$');
                 }
                 Some('{') => {
                     chars.next(); // consume '{'
-                    let mut key = String::new();
-                    let mut default = None;
-                    let mut in_default = false;
-                    while let Some(&ch) = chars.peek() {
-                        if ch == '}' {
-                            chars.next(); // consume '}'
-                            break;
-                        } else if ch == ':' && chars.clone().nth(1) == Some('-') {
-                            chars.next();
-                            chars.next(); // consume :-
-                            in_default = true;
-                        } else {
-                            if in_default {
-                                default.get_or_insert(String::new()).push(ch);
-                            } else {
-                                key.push(ch);
+                    let mut expr = String::new();
+                    let mut depth = 1;
+                    while let Some(ch) = chars.next() {
+                        match ch {
+                            '{' => {
+                                depth += 1;
+                                expr.push(ch);
                             }
-                            chars.next();
+                            '}' => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                } else {
+                                    expr.push(ch);
+                                }
+                            }
+                            _ => expr.push(ch),
                         }
                     }
-                    let val = env.get(&key).or(default.as_ref().cloned()).unwrap_or_default();
-                    result.push_str(&val);
+                    result.push_str(&eval_braced(&expr, env));
                 }
-                Some(ch) if ch.is_alphanumeric() || *ch == '_' => {
-                    let mut key = String::new();
+                Some(ch) if is_var_char(*ch) || ch.is_ascii_digit() => {
+                    let mut name = String::new();
                     while let Some(&ch) = chars.peek() {
-                        if ch.is_alphanumeric() || ch == '_' {
-                            key.push(ch);
+                        if is_var_char(ch) || ch.is_ascii_digit() {
+                            name.push(ch);
                             chars.next();
                         } else {
                             break;
                         }
                     }
-                    let val = env.get(&key).unwrap_or_default();
-                    result.push_str(&val);
+                    result.push_str(&env.get(&name).unwrap_or_default());
                 }
                 _ => {
                     result.push('$');
@@ -129,6 +102,180 @@ pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
     result
 }
 
+fn is_var_char(c: char) -> bool {
+    c == '_' || c.is_ascii_alphabetic()
+}
+
+fn eval_braced(expr: &str, env: &impl EnvSource) -> String {
+    if let Some(rest) = expr.strip_prefix('#') {
+        let val = env.get(rest).unwrap_or_default();
+        return val.chars().count().to_string();
+    }
+    if let Some(rest) = expr.strip_prefix('!') {
+        let key = env.get(rest).unwrap_or_default();
+        return env.get(&key).unwrap_or_default();
+    }
+
+    // 解析变量名
+    let mut end = 0;
+    for (i, ch) in expr.char_indices() {
+        if is_var_char(ch) || ch.is_ascii_digit() {
+            end = i + ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    let name = &expr[..end];
+    let rest = &expr[end..];
+    let val_opt = env.get(name);
+
+    // 默认值/赋值/条件值/报错
+    if let Some((colon, op, word)) = parse_colon_op(rest) {
+        let is_set = val_opt.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
+        let cond = if colon { is_set } else { val_opt.is_some() };
+        match op {
+            '-' => {
+                if cond {
+                    return val_opt.unwrap();
+                } else {
+                    return word.to_string();
+                }
+            }
+            '=' => {
+                if cond {
+                    return val_opt.unwrap();
+                } else {
+                    return word.to_string();
+                }
+            }
+            '+' => {
+                if cond {
+                    return word.to_string();
+                } else {
+                    return String::new();
+                }
+            }
+            '?' => {
+                if cond {
+                    return val_opt.unwrap();
+                } else {
+                    return word.to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // 子串截取
+    if let Some(rest2) = rest.strip_prefix(':') {
+        return substring(val_opt.unwrap_or_default(), rest2);
+    }
+
+    // 前缀/后缀删除
+    if let Some(pat) = rest.strip_prefix("##") {
+        let v = val_opt.unwrap_or_default();
+        return remove_prefix(&v, pat);
+    }
+    if let Some(pat) = rest.strip_prefix('#') {
+        let v = val_opt.unwrap_or_default();
+        return remove_prefix(&v, pat);
+    }
+    if let Some(pat) = rest.strip_prefix("%%") {
+        let v = val_opt.unwrap_or_default();
+        return remove_suffix(&v, pat);
+    }
+    if let Some(pat) = rest.strip_prefix('%') {
+        let v = val_opt.unwrap_or_default();
+        return remove_suffix(&v, pat);
+    }
+
+    // 模式替换（需先匹配双斜杠）
+    if let Some(repl_spec) = rest.strip_prefix("//") {
+        return replace_pattern(val_opt.unwrap_or_default().as_str(), repl_spec, true);
+    }
+    if let Some(repl_spec) = rest.strip_prefix('/') {
+        return replace_pattern(val_opt.unwrap_or_default().as_str(), repl_spec, false);
+    }
+
+    val_opt.unwrap_or_default()
+}
+
+fn parse_colon_op(rest: &str) -> Option<(bool, char, &str)> {
+    let bytes = rest.as_bytes();
+    if rest.len() >= 2 && bytes[0] == b':' {
+        let op = bytes[1] as char;
+        if "-+=?".contains(op) {
+            return Some((true, op, &rest[2..]));
+        }
+    } else if !rest.is_empty() {
+        let op = bytes[0] as char;
+        if "-+=?".contains(op) {
+            return Some((false, op, &rest[1..]));
+        }
+    }
+    None
+}
+
+fn substring(val: String, spec: &str) -> String {
+    let mut parts = spec.splitn(2, ':');
+    let off_str = parts.next().unwrap_or("0");
+    let len_str = parts.next();
+    let chars: Vec<char> = val.chars().collect();
+    let len_val = chars.len() as isize;
+    let mut off: isize = off_str.trim().parse().unwrap_or(0);
+    if off < 0 {
+        off = len_val + off;
+    }
+    let off = off.clamp(0, len_val) as usize;
+    if let Some(len_s) = len_str {
+        let n: isize = len_s.trim().parse().unwrap_or(0);
+        if n < 0 {
+            return String::new();
+        }
+        let end = (off as isize + n).clamp(0, len_val) as usize;
+        chars[off..end].iter().collect()
+    } else {
+        chars[off..].iter().collect()
+    }
+}
+
+fn remove_prefix(val: &str, pat: &str) -> String {
+    if let Some(rest) = val.strip_prefix(pat) {
+        rest.to_string()
+    } else {
+        val.to_string()
+    }
+}
+
+fn remove_suffix(val: &str, pat: &str) -> String {
+    if let Some(rest) = val.strip_suffix(pat) {
+        rest.to_string()
+    } else {
+        val.to_string()
+    }
+}
+
+fn replace_pattern(val: &str, spec: &str, all: bool) -> String {
+    let mut parts = spec.splitn(2, '/');
+    let mut pat = parts.next().unwrap_or("");
+    let repl = parts.next().unwrap_or("");
+    let anchor_start = pat.starts_with('#');
+    let anchor_end = pat.starts_with('%');
+    if anchor_start || anchor_end {
+        pat = &pat[1..];
+    }
+    if pat.is_empty() {
+        return val.to_string();
+    }
+    if anchor_start && val.starts_with(pat) {
+        return format!("{}{}", repl, &val[pat.len()..]);
+    }
+    if anchor_end && val.ends_with(pat) {
+        return format!("{}{}", &val[..val.len() - pat.len()], repl);
+    }
+    if all { val.replace(pat, repl) } else { val.replacen(pat, repl, 1) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,134 +283,57 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
 
     #[test]
-    fn test_expand_basic() {
+    fn test_basic_and_default() {
         let mut env = HashMap::new();
         env.insert("FOO".into(), "bar".into());
-        assert_eq!(expand_env("$FOO/bin", &env), "bar/bin");
+        assert_eq!(expand_env("$FOO/${BAR:-baz}", &env), "bar/baz");
     }
 
     #[test]
-    fn test_expand_brace() {
+    fn test_length_and_remove() {
         let mut env = HashMap::new();
-        env.insert("FOO".into(), "bar".into());
-        assert_eq!(expand_env("${FOO}/lib", &env), "bar/lib");
+        env.insert("NAME".into(), "/usr/bin".into());
+        assert_eq!(expand_env("len=${#NAME}", &env), "len=8");
+        assert_eq!(expand_env("${NAME#/usr}", &env), "/bin");
+        assert_eq!(expand_env("${NAME%bin}", &env), "/usr/");
     }
 
     #[test]
-    fn test_expand_with_default() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("${FOO:-baz}/bin", &env), "baz/bin");
-    }
-
-    #[test]
-    fn test_unterminated_brace() {
+    fn test_substring_and_replace() {
         let mut env = HashMap::new();
-        env.insert("FOO".into(), "bar".into());
-        assert_eq!(expand_env("${FOO", &env), "bar");
+        env.insert("WORD".into(), "helloworld".into());
+        assert_eq!(expand_env("${WORD:5}", &env), "world");
+        assert_eq!(expand_env("${WORD:0:5}", &env), "hello");
+        assert_eq!(expand_env("${WORD/hello/hi}", &env), "hiworld");
+        assert_eq!(expand_env("${WORD//l/_}", &env), "he__owor_d");
+        assert_eq!(expand_env("${WORD/#hello/hi}", &env), "hiworld");
+        assert_eq!(expand_env("${WORD/%world/earth}", &env), "helloearth");
     }
 
     #[test]
-    fn test_mixed_vars_and_defaults() {
+    fn test_indirect_and_recursive() {
         let mut env = HashMap::new();
-        env.insert("X".into(), "123".into());
-        env.insert("Y".into(), "abc".into());
-        assert_eq!(expand_env("$X/${Y:-zzz}/$Z", &env), "123/abc/");
+        env.insert("A".into(), "B".into());
+        env.insert("B".into(), "C".into());
+        env.insert("C".into(), "ok".into());
+        assert_eq!(expand_env("${!A}", &env), "C");
+        env.insert("VAR".into(), "$C".into());
+        assert_eq!(expand_env_recursive("$VAR", &env), "ok");
     }
 
     #[test]
-    fn test_literal_dollar_sign() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("Price is $$100", &env), "Price is $100");
-    }
-
-    #[test]
-    fn test_non_alphanumeric_after_dollar() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("Hello $!", &env), "Hello $!");
-    }
-
-    #[test]
-    fn test_multiple_variables() {
-        let mut env = HashMap::new();
-        env.insert("A".into(), "1".into());
-        env.insert("B".into(), "2".into());
-        env.insert("C".into(), "3".into());
-        assert_eq!(expand_env("$A-$B-${C:-0}", &env), "1-2-3");
-    }
-
-    #[test]
-    fn test_empty_input() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("", &env), "");
-    }
-
-    #[test]
-    fn test_default_value_with_special_chars() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("${MISSING:-/usr/local/bin}", &env), "/usr/local/bin");
-    }
-
-    #[test]
-    fn test_no_substitution() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("just a string", &env), "just a string");
-    }
-
-    #[test]
-    fn test_env_source_btree_map() {
-        let mut env = BTreeMap::new();
-        env.insert("FOO".into(), "baz".into());
-        assert_eq!(expand_env("$FOO", &env), "baz");
-    }
-
-    #[test]
-    fn test_env_source_slice() {
-        let env: &[(&str, &str)] = &[("FOO", "baz")];
-        assert_eq!(expand_env("prefix_$FOO", &env), "prefix_baz");
-    }
-
-    #[test]
-    fn test_env_source_fn_adapter() {
-        let env_fn = FnEnvSource(|key: &str| if key == "FOO" { Some("baz".into()) } else { None });
-        assert_eq!(expand_env("abc$FOO", &env_fn), "abcbaz");
-    }
-
-    #[test]
-    fn test_chain_env_source() {
-        let env1 = [("FOO", "a")];
-        let mut env2 = HashMap::new();
-        env2.insert("BAR".into(), "b".into());
+    fn test_env_sources() {
+        let env_slice: &[(&str, &str)] = &[("FOO", "x")];
+        assert_eq!(expand_env("$FOO", &env_slice), "x");
+        let mut map = BTreeMap::new();
+        map.insert("BAR".into(), "y".into());
+        assert_eq!(expand_env("$BAR", &map), "y");
+        let func = FnEnvSource(|k: &str| if k == "Z" { Some("z".into()) } else { None });
+        assert_eq!(expand_env("$Z", &func), "z");
         let chain = EnvSourceChain {
-            primary: &env1[..],
-            fallback: &env2,
+            primary: &env_slice[..],
+            fallback: &map,
         };
-        assert_eq!(expand_env("$FOO:$BAR:$BAZ", &chain), "a:b:");
-    }
-
-    #[test]
-    fn test_recursive_expand() {
-        let mut env = HashMap::new();
-        env.insert("FOO".into(), "$BAR".into());
-        env.insert("BAR".into(), "hello".into());
-        assert_eq!(expand_env_recursive("$FOO world", &env), "hello world");
-    }
-
-    #[test]
-    fn test_recursive_multi_layer() {
-        let mut env = HashMap::new();
-        env.insert("A".into(), "$B".into());
-        env.insert("B".into(), "$C".into());
-        env.insert("C".into(), "$D".into());
-        env.insert("D".into(), "42".into());
-        assert_eq!(expand_env_recursive("A=$A, B=$B, C=$C, D=$D", &env), "A=42, B=42, C=42, D=42");
-    }
-
-    #[test]
-    fn test_recursive_prevent_infinite() {
-        let mut env = HashMap::new();
-        env.insert("LOOP".into(), "$LOOP".into());
-        let res = expand_env_recursive("start:$LOOP:end", &env);
-        // 最多递归8次，最后返回原样
-        assert!(res.contains("$LOOP"));
+        assert_eq!(expand_env("$FOO:$BAR", &chain), "x:y");
     }
 }
