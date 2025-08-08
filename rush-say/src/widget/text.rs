@@ -1,6 +1,7 @@
 use crate::widget::{Align, Constraints, Size, Widget};
 use std::io::Write;
 use std::ops::Range;
+use std::str::FromStr;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -77,7 +78,11 @@ impl Text {
 }
 
 impl Widget for Text {
-    fn layout(&mut self, constraints: Constraints) -> Size {
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn layout(&mut self, constraints: Constraints) {
         println!("{constraints:?}");
         self.lines = self.wrap_text(constraints.wrap_width);
         let width = self
@@ -89,7 +94,6 @@ impl Widget for Text {
             .max(constraints.render_width);
         let height = self.lines.len();
         self.size = Size { width, height };
-        self.size
     }
 
     fn render(&self, writer: &mut impl Write, row: usize) -> std::io::Result<()> {
@@ -123,6 +127,14 @@ impl TextLine {
             _ => 0..0, // 如果没有字符，则返回空范围
         };
         &content[range]
+    }
+}
+
+impl FromStr for Text {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Text::new(s))
     }
 }
 

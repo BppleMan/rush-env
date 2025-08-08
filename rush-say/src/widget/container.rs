@@ -1,4 +1,4 @@
-use crate::widget::border_style::BorderStyle;
+use crate::style::BorderStyle;
 use crate::widget::{Align, Constraints, Size, Widget};
 use std::io::Write;
 
@@ -12,7 +12,6 @@ where
     pub padding: usize,
     pub margin: usize,
     pub align: Align,
-    inner_size: Size,
     size: Size,
 }
 
@@ -27,7 +26,6 @@ where
             padding: 0,
             margin: 0,
             align: Align::Center,
-            inner_size: Size::default(),
             size: Size::default(),
         }
     }
@@ -57,7 +55,11 @@ impl<T> Widget for Container<T>
 where
     T: Widget,
 {
-    fn layout(&mut self, constraints: Constraints) -> Size {
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn layout(&mut self, constraints: Constraints) {
         let left = self.margin + self.padding + self.border.size;
         let right = self.margin + self.padding + self.border.size;
         let top = self.border.size;
@@ -66,12 +68,11 @@ where
             render_width: constraints.render_width.saturating_sub(left + right),
             wrap_width: constraints.wrap_width.saturating_sub(left + right),
         };
-        self.inner_size = self.inner.layout(constraints);
+        self.inner.layout(constraints);
         self.size = Size {
-            width: self.inner_size.width + left + right,
-            height: self.inner_size.height + top + bottom,
+            width: self.inner.size().width + left + right,
+            height: self.inner.size().height + top + bottom,
         };
-        self.size
     }
 
     fn render(&self, writer: &mut impl Write, row: usize) -> std::io::Result<()> {
@@ -98,18 +99,16 @@ where
             let pad = self
                 .size
                 .width
-                .saturating_sub(2 * self.margin + 2 * self.border.size + self.inner_size.width);
+                .saturating_sub(2 * self.margin + 2 * self.border.size + self.inner.size().width);
             let (left, right) = match self.align {
                 Align::Center => (pad / 2, pad - (pad / 2)),
                 Align::Left => (0, pad),
                 Align::Right => (pad, 0),
             };
-            println!("left: {}, right: {}", left, right);
             write!(writer, "{}{}", self.border.vertical, " ".repeat(left))?;
             self.inner.render(writer, row - self.border.size)?;
             write!(writer, "{}{}", " ".repeat(right), self.border.vertical)?;
         }
-        write!(writer, "{}", " ".repeat(self.margin))?;
-        writeln!(writer)
+        write!(writer, "{}", " ".repeat(self.margin))
     }
 }

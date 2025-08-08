@@ -1,13 +1,13 @@
 mod text;
 mod container;
-mod border_style;
 
-pub use border_style::BorderStyle;
 pub use container::Container;
 pub use text::Text;
 
 pub trait Widget {
-    fn layout(&mut self, constraints: Constraints) -> Size;
+    fn size(&self) -> Size;
+
+    fn layout(&mut self, constraints: Constraints);
 
     fn render(&self, writer: &mut impl std::io::Write, row: usize) -> std::io::Result<()>;
 }
@@ -51,28 +51,21 @@ pub fn visual_width_char(ch: char) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::widget::border_style::BorderStyle;
+    use crate::style::BorderStyle;
     use crate::widget::container::Container;
     use crate::widget::text::Text;
     use crate::widget::{Align, Constraints, Widget};
     use std::io::{Cursor, Write};
 
     #[test]
-    fn test_format_write() {
-        // let mut output = String::new();
-        // let _ = write!(&mut output, "{:>10}", "12345");
-        // println!("{output}");
-    }
-
-    #[test]
     fn test_render_text() {
         let mut text = Text::new("11223344556677889900").set_align(Align::Center);
-        let size = text.layout(Constraints {
+        text.layout(Constraints {
             render_width: 10,
             wrap_width: 4,
         });
         let mut output = Cursor::new(vec![]);
-        for row in 0..size.height {
+        for row in 0..text.size().height {
             text.render(&mut output, row).unwrap();
             writeln!(&mut output).unwrap();
         }
@@ -87,12 +80,12 @@ mod tests {
             .set_margin(1)
             .set_padding(10)
             .set_border(BorderStyle::dashed_round());
-        let size = container.layout(Constraints {
+        container.layout(Constraints {
             render_width: 40,
             wrap_width: 40,
         });
         let mut output = Cursor::new(vec![]);
-        for row in 0..size.height {
+        for row in 0..container.size().height {
             container.render(&mut output, row).unwrap();
         }
         println!("{}", String::from_utf8(output.into_inner()).unwrap());

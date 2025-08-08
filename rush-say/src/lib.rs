@@ -9,13 +9,12 @@
 //! say_section(&mut stdout(), "你好，Rush!\n可自动居中、自动分行。", 48, 2).unwrap();
 //! ```
 
-mod border;
 mod bubble;
 mod bubble_builder;
 mod widget;
 mod str_ext;
+mod style;
 
-use crate::border::CommentStyle;
 pub use bubble::*;
 
 /// 输出漂亮的注释框气泡（支持自动分行、视觉居中、中文/emoji等宽）
