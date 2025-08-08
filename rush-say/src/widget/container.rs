@@ -60,15 +60,16 @@ where
     }
 
     fn layout(&mut self, constraints: Constraints) {
+        println!("margin: {}, padding: {}", self.margin, self.padding);
         let left = self.margin + self.padding + self.border.size;
         let right = self.margin + self.padding + self.border.size;
         let top = self.border.size;
         let bottom = self.border.size;
         let constraints = Constraints {
-            render_width: constraints.render_width.saturating_sub(left + right),
-            wrap_width: constraints.wrap_width.saturating_sub(left + right),
+            max_width: constraints.max_width.saturating_sub(left + right),
         };
         self.inner.layout(constraints);
+        println!("Container layout: {:?}", self.inner.size());
         self.size = Size {
             width: self.inner.size().width + left + right,
             height: self.inner.size().height + top + bottom,
@@ -99,15 +100,16 @@ where
             let pad = self
                 .size
                 .width
-                .saturating_sub(2 * self.margin + 2 * self.border.size + self.inner.size().width);
+                .saturating_sub(2 * self.margin + 2 * self.border.size + 2 * self.padding + self.inner.size().width);
+            println!("self.size: {:?}, inner.size: {:?}, pad: {pad}", self.size, self.inner.size());
             let (left, right) = match self.align {
                 Align::Center => (pad / 2, pad - (pad / 2)),
                 Align::Left => (0, pad),
                 Align::Right => (pad, 0),
             };
-            write!(writer, "{}{}", self.border.vertical, " ".repeat(left))?;
+            write!(writer, "{}{}", self.border.vertical, " ".repeat(self.padding + left))?;
             self.inner.render(writer, row - self.border.size)?;
-            write!(writer, "{}{}", " ".repeat(right), self.border.vertical)?;
+            write!(writer, "{}{}", " ".repeat(self.padding + right), self.border.vertical)?;
         }
         write!(writer, "{}", " ".repeat(self.margin))
     }

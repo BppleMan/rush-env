@@ -27,3 +27,29 @@ impl CommentStyle {
         self.size
     }
 }
+
+impl CommentStyle {
+    pub fn rust() -> Self {
+        CommentStyle::with_suffix("// ", "")
+    }
+
+    pub fn rust_doc() -> Self {
+        CommentStyle::with_suffix("/// ", "")
+    }
+
+    pub fn java() -> Self {
+        CommentStyle::with_suffix("// ", "")
+    }
+
+    pub fn kotlin() -> Self {
+        CommentStyle::with_suffix("// ", "")
+    }
+
+    pub fn html() -> Self {
+        CommentStyle::with_suffix("<!-- ", " -->")
+    }
+
+    pub fn xml() -> Self {
+        CommentStyle::with_suffix("<!-- ", " -->")
+    }
+}
