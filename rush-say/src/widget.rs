@@ -14,8 +14,7 @@ pub trait Widget {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Constraints {
-    pub render_width: usize,
-    pub wrap_width: usize,
+    pub max_width: usize,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -60,10 +59,7 @@ mod tests {
     #[test]
     fn test_render_text() {
         let mut text = Text::new("11223344556677889900").set_align(Align::Center);
-        text.layout(Constraints {
-            render_width: 10,
-            wrap_width: 4,
-        });
+        text.layout(Constraints { max_width: 10 });
         let mut output = Cursor::new(vec![]);
         for row in 0..text.size().height {
             text.render(&mut output, row).unwrap();
@@ -80,13 +76,11 @@ mod tests {
             .set_margin(1)
             .set_padding(10)
             .set_border(BorderStyle::dashed_round());
-        container.layout(Constraints {
-            render_width: 40,
-            wrap_width: 40,
-        });
+        container.layout(Constraints { max_width: 40 });
         let mut output = Cursor::new(vec![]);
         for row in 0..container.size().height {
             container.render(&mut output, row).unwrap();
+            writeln!(&mut output).unwrap();
         }
         println!("{}", String::from_utf8(output.into_inner()).unwrap());
     }

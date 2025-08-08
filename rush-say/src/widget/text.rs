@@ -83,15 +83,18 @@ impl Widget for Text {
     }
 
     fn layout(&mut self, constraints: Constraints) {
-        println!("{constraints:?}");
-        self.lines = self.wrap_text(constraints.wrap_width);
+        println!("Layout Text with constraints: {constraints:?}");
+        self.lines = self.wrap_text(constraints.max_width);
+        // for line in &self.lines {
+        //     println!("({}) {}", line.width, line.render(&self.content));
+        // }
         let width = self
             .lines
             .iter()
             .map(|line| line.width)
             .max()
             .unwrap_or(0)
-            .max(constraints.render_width);
+            .max(constraints.max_width);
         let height = self.lines.len();
         self.size = Size { width, height };
     }
