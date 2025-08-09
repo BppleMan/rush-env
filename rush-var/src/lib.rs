@@ -1,269 +1,465 @@
-//! # rush-var —— Bash风格环境变量插值库
+//! # rush-var
 //!
-//! 支持 $VAR, ${VAR}, ${VAR:-default}，适配多种环境变量源（HashMap/BTreeMap/切片/闭包/链式/系统环境等）。
+//! A Rust library for parsing and evaluating shell parameter expansions with zsh-first semantics.
 //!
-//! ## 用法示例
+//! This library provides a complete implementation of shell parameter expansion including:
+//! - Basic variable references: `$name`, `${name}`
+//! - Length operations: `${#name}`
+//! - Default/assign/alt/error operations: `${name:-default}`, `${name:=default}`, etc.
+//! - Prefix/suffix removal: `${name#pattern}`, `${name%pattern}`
+//! - String replacement: `${name/pattern/replacement}`
+//! - Substring extraction: `${name:offset:length}`
+//! - Indirection: `${!name}`, `${(P)name}`
+//! - Zsh parameter expansion flags: `${(flags)name}`
+//! - Path modifiers: `${name:h:t:r:e}`
+//! - Array and associative array support
 //!
-//! ```rust
-//! use rush_var::expand_env;
-//! let env = [ ("FOO", "bar") ];
-//! assert_eq!(expand_env("Hello $FOO!", &env), "Hello bar!");
-//! assert_eq!(expand_env("path=${BAR:-/usr/local}/bin", &env), "path=/usr/local/bin");
-//! ```
-//!
-//! ## 支持自定义环境源
-//!
-//! ```rust
-//! use rush_var::env_source::{FnEnvSource};
-//! use rush_var::expand_env;
-//! let env = FnEnvSource(|k: &str| if k == "USER" { Some("alice".to_string()) } else { None });
-//! assert_eq!(expand_env("hi_$USER", &env), "hi_alice");
-//! ```
-//!
-//! ## 支持链式变量源（优先主源，后备源）
+//! ## Example
 //!
 //! ```rust
-//! use rush_var::env_source::{EnvSourceChain};
-//! use rush_var::expand_env;
-//! let main = [ ("A", "x") ];
-//! let mut fallback = std::collections::HashMap::new();
-//! fallback.insert("B".to_string(), "y".to_string());
-//! let chain = EnvSourceChain { primary: &main[..], fallback: &fallback };
-//! assert_eq!(expand_env("$A,$B", &chain), "x,y");
+//! use rush_var::{expand_str, Env, Options};
+//!
+//! let mut env = Env::new();
+//! env.set_scalar("USER", "alice");
+//! env.set_scalar("HOME", "/home/alice");
+//!
+//! let options = Options::default();
+//! let result = expand_str("Hello ${USER}, your home is ${HOME}", &env, &options)?;
+//! assert_eq!(result, "Hello alice, your home is /home/alice");
+//! # Ok::<(), rush_var::Error>(())
 //! ```
 
-pub mod env_source;
+pub mod ast;
+pub mod env;
+pub mod lexer;
+pub mod parser;
+pub mod eval;
 
-use crate::env_source::EnvSource;
-
-pub fn expand_env_vars(input: &str) -> String {
-    let vars = std::env::vars();
-    expand_env_recursive(input, &vars)
-}
-
-pub fn expand_env_recursive(input: &str, env: &impl EnvSource) -> String {
-    const MAX_EXPAND_DEPTH: usize = 8;
-    fn inner(s: &str, env: &impl EnvSource, depth: usize) -> String {
-        if depth >= MAX_EXPAND_DEPTH {
-            return s.to_string();
-        }
-        let expanded = expand_env(s, env);
-        if expanded.contains('$') && expanded != s {
-            inner(&expanded, env, depth + 1)
-        } else {
-            expanded
-        }
-    }
-    inner(input, env, 0)
-}
-
-/// Bash 风格环境变量插值主函数。
-///
-/// 支持 $VAR、${VAR}、${VAR:-default}、$$（字面$），适配多种环境变量源。
-///
-/// # 用法示例
-/// ```rust
-/// use rush_var::expand_env;
-/// let env = [ ("FOO", "bar") ];
-/// assert_eq!(expand_env("$FOO/bin", &env), "bar/bin");
-/// assert_eq!(expand_env("${BAR:-default}/lib", &env), "default/lib");
-/// ```
-pub fn expand_env(input: &str, env: &impl EnvSource) -> String {
-    let mut result = String::new();
-    let mut chars = input.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            match chars.peek() {
-                Some('$') => {
-                    chars.next(); // consume second $
-                    result.push('$');
-                }
-                Some('{') => {
-                    chars.next(); // consume '{'
-                    let mut key = String::new();
-                    let mut default = None;
-                    let mut in_default = false;
-                    while let Some(&ch) = chars.peek() {
-                        if ch == '}' {
-                            chars.next(); // consume '}'
-                            break;
-                        } else if ch == ':' && chars.clone().nth(1) == Some('-') {
-                            chars.next();
-                            chars.next(); // consume :-
-                            in_default = true;
-                        } else {
-                            if in_default {
-                                default.get_or_insert(String::new()).push(ch);
-                            } else {
-                                key.push(ch);
-                            }
-                            chars.next();
-                        }
-                    }
-                    let val = env.get(&key).or(default.as_ref().cloned()).unwrap_or_default();
-                    result.push_str(&val);
-                }
-                Some(ch) if ch.is_alphanumeric() || *ch == '_' => {
-                    let mut key = String::new();
-                    while let Some(&ch) = chars.peek() {
-                        if ch.is_alphanumeric() || ch == '_' {
-                            key.push(ch);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-                    let val = env.get(&key).unwrap_or_default();
-                    result.push_str(&val);
-                }
-                _ => {
-                    result.push('$');
-                }
-            }
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
-}
+// Re-export main types and functions
+pub use ast::*;
+pub use env::{Env, Value};
+pub use eval::{GlobKind, Mode, Options, evaluate_expr, expand_str};
+pub use parser::parse_braced;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::env_source::{EnvSourceChain, FnEnvSource};
-    use std::collections::{BTreeMap, HashMap};
+    use pretty_assertions::assert_eq;
 
-    #[test]
-    fn test_expand_basic() {
-        let mut env = HashMap::new();
-        env.insert("FOO".into(), "bar".into());
-        assert_eq!(expand_env("$FOO/bin", &env), "bar/bin");
+    fn create_test_env() -> Env {
+        let mut env = Env::new();
+        env.set_scalar("FOO", "bar");
+        env.set_scalar("EMPTY", "");
+        env.set_scalar("PATH", "/usr/bin:/bin");
+        env.set_scalar("HOME", "/home/user");
+        env.set_scalar("USER", "testuser");
+        env.set_array("ARR", vec!["one", "two", "three"]);
+        env.set_assoc("MAP", vec![("key1", "val1"), ("key2", "val2")]);
+        env.set_positional(vec!["arg1", "arg2", "arg3"]);
+        env
+    }
+
+    fn test_options() -> Options {
+        Options {
+            mode: Mode::Zsh,
+            allow_exec_subst: false,
+            allow_flag_e: false,
+            glob_impl: GlobKind::Simple,
+        }
     }
 
     #[test]
-    fn test_expand_brace() {
-        let mut env = HashMap::new();
-        env.insert("FOO".into(), "bar".into());
-        assert_eq!(expand_env("${FOO}/lib", &env), "bar/lib");
+    fn test_basic_variable_expansion() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Basic variable references
+        assert_eq!(expand_str("$FOO", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("${FOO}", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("pre_${FOO}_post", &env, &opts).unwrap(), "pre_bar_post");
+        assert_eq!(expand_str("${FOO}bar", &env, &opts).unwrap(), "barbar");
+
+        // Multiple expansions
+        assert_eq!(expand_str("$FOO-$USER", &env, &opts).unwrap(), "bar-testuser");
+        assert_eq!(expand_str("${FOO}_${USER}", &env, &opts).unwrap(), "bar_testuser");
     }
 
     #[test]
-    fn test_expand_with_default() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("${FOO:-baz}/bin", &env), "baz/bin");
+    fn test_special_parameters() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Special parameters
+        assert_eq!(expand_str("${$}", &env, &opts).unwrap(), "12345"); // PID
+        assert_eq!(expand_str("${?}", &env, &opts).unwrap(), "0"); // Last status
+        assert_eq!(expand_str("${0}", &env, &opts).unwrap(), "zsh"); // Shell name
+        assert_eq!(expand_str("${#}", &env, &opts).unwrap(), "3"); // Positional count
     }
 
     #[test]
-    fn test_unterminated_brace() {
-        let mut env = HashMap::new();
-        env.insert("FOO".into(), "bar".into());
-        assert_eq!(expand_env("${FOO", &env), "bar");
+    fn test_positional_parameters() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Positional parameters
+        assert_eq!(expand_str("${1}", &env, &opts).unwrap(), "arg1");
+        assert_eq!(expand_str("${2}", &env, &opts).unwrap(), "arg2");
+        assert_eq!(expand_str("${3}", &env, &opts).unwrap(), "arg3");
+        assert_eq!(expand_str("${10}", &env, &opts).unwrap(), ""); // Out of range
     }
 
     #[test]
-    fn test_mixed_vars_and_defaults() {
-        let mut env = HashMap::new();
-        env.insert("X".into(), "123".into());
-        env.insert("Y".into(), "abc".into());
-        assert_eq!(expand_env("$X/${Y:-zzz}/$Z", &env), "123/abc/");
+    fn test_length_operation() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Length operation
+        assert_eq!(expand_str("${#FOO}", &env, &opts).unwrap(), "3");
+        assert_eq!(expand_str("${#EMPTY}", &env, &opts).unwrap(), "0");
+        assert_eq!(expand_str("${#PATH}", &env, &opts).unwrap(), "13");
+        assert_eq!(expand_str("${#ARR}", &env, &opts).unwrap(), "3"); // Array first element length
     }
 
     #[test]
-    fn test_literal_dollar_sign() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("Price is $$100", &env), "Price is $100");
+    fn test_default_operations() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Default with dash (colon variants)
+        assert_eq!(expand_str("${FOO:-default}", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("${EMPTY:-default}", &env, &opts).unwrap(), "default");
+        assert_eq!(expand_str("${UNSET:-default}", &env, &opts).unwrap(), "default");
+
+        // Default with dash (non-colon variants)
+        assert_eq!(expand_str("${FOO-default}", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("${EMPTY-default}", &env, &opts).unwrap(), ""); // Set but empty
+        assert_eq!(expand_str("${UNSET-default}", &env, &opts).unwrap(), "default");
+
+        // Plus operation
+        assert_eq!(expand_str("${FOO:+alt}", &env, &opts).unwrap(), "alt");
+        assert_eq!(expand_str("${EMPTY:+alt}", &env, &opts).unwrap(), "");
+        assert_eq!(expand_str("${UNSET:+alt}", &env, &opts).unwrap(), "");
+
+        assert_eq!(expand_str("${FOO+alt}", &env, &opts).unwrap(), "alt");
+        assert_eq!(expand_str("${EMPTY+alt}", &env, &opts).unwrap(), "alt"); // Set but empty
+        assert_eq!(expand_str("${UNSET+alt}", &env, &opts).unwrap(), "");
     }
 
     #[test]
-    fn test_non_alphanumeric_after_dollar() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("Hello $!", &env), "Hello $!");
+    fn test_error_operation() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Question mark operation (should succeed)
+        assert_eq!(expand_str("${FOO:?error}", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("${FOO?error}", &env, &opts).unwrap(), "bar");
+
+        // Question mark operation (should error)
+        assert!(expand_str("${UNSET:?error message}", &env, &opts).is_err());
+        assert!(expand_str("${EMPTY:?error message}", &env, &opts).is_err());
+        assert!(expand_str("${UNSET?error message}", &env, &opts).is_err());
     }
 
     #[test]
-    fn test_multiple_variables() {
-        let mut env = HashMap::new();
-        env.insert("A".into(), "1".into());
-        env.insert("B".into(), "2".into());
-        env.insert("C".into(), "3".into());
-        assert_eq!(expand_env("$A-$B-${C:-0}", &env), "1-2-3");
+    fn test_prefix_suffix_removal() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Test with PATH-like variable
+        assert_eq!(expand_str("${PATH#*/}", &env, &opts).unwrap(), "usr/bin:/bin");
+        assert_eq!(expand_str("${PATH##*/}", &env, &opts).unwrap(), "bin");
+        assert_eq!(expand_str("${PATH%:*}", &env, &opts).unwrap(), "/usr/bin");
+        assert_eq!(expand_str("${PATH%%:*}", &env, &opts).unwrap(), "/usr/bin");
+
+        // Test with filename-like string
+        let mut env2 = create_test_env();
+        env2.set_scalar("FILE", "path/to/file.txt");
+
+        assert_eq!(expand_str("${FILE#*/}", &env2, &opts).unwrap(), "to/file.txt");
+        assert_eq!(expand_str("${FILE##*/}", &env2, &opts).unwrap(), "file.txt");
+        assert_eq!(expand_str("${FILE%.*}", &env2, &opts).unwrap(), "path/to/file");
+        assert_eq!(expand_str("${FILE%%.*}", &env2, &opts).unwrap(), "path/to/file");
     }
 
     #[test]
-    fn test_empty_input() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("", &env), "");
+    fn test_string_replacement() {
+        let mut env2 = create_test_env();
+        env2.set_scalar("TEXT", "hello world hello");
+        let opts = test_options();
+
+        // Replace operations
+        assert_eq!(expand_str("${TEXT/hello/hi}", &env2, &opts).unwrap(), "hi world hello");
+        assert_eq!(expand_str("${TEXT//hello/hi}", &env2, &opts).unwrap(), "hi world hi");
+
+        // Anchored replacements
+        env2.set_scalar("TEXT2", "hello world");
+        assert_eq!(expand_str("${TEXT2/#hello/hi}", &env2, &opts).unwrap(), "hi world");
+        assert_eq!(expand_str("${TEXT2/%world/universe}", &env2, &opts).unwrap(), "hello universe");
     }
 
     #[test]
-    fn test_default_value_with_special_chars() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("${MISSING:-/usr/local/bin}", &env), "/usr/local/bin");
+    fn test_substring_extraction() {
+        let mut env2 = create_test_env();
+        env2.set_scalar("TEXT", "hello world");
+        let opts = test_options();
+
+        // Substring operations
+        assert_eq!(expand_str("${TEXT:0:5}", &env2, &opts).unwrap(), "hello");
+        assert_eq!(expand_str("${TEXT:6}", &env2, &opts).unwrap(), "world");
+        assert_eq!(expand_str("${TEXT:6:3}", &env2, &opts).unwrap(), "wor");
+        assert_eq!(expand_str("${TEXT:-5}", &env2, &opts).unwrap(), "world"); // Negative offset
     }
 
     #[test]
-    fn test_no_substitution() {
-        let env = HashMap::new();
-        assert_eq!(expand_env("just a string", &env), "just a string");
+    fn test_indirection() {
+        let mut env = create_test_env();
+        env.set_scalar("VAR", "FOO");
+        let opts = test_options();
+
+        // Indirection operations
+        assert_eq!(expand_str("${!VAR}", &env, &opts).unwrap(), "bar");
+        // Note: ${(P)VAR} would be tested with zsh flags
     }
 
     #[test]
-    fn test_env_source_btree_map() {
-        let mut env = BTreeMap::new();
-        env.insert("FOO".into(), "baz".into());
-        assert_eq!(expand_env("$FOO", &env), "baz");
+    fn test_array_operations() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Array indexing
+        assert_eq!(expand_str("${ARR[1]}", &env, &opts).unwrap(), "one");
+        assert_eq!(expand_str("${ARR[2]}", &env, &opts).unwrap(), "two");
+        assert_eq!(expand_str("${ARR[3]}", &env, &opts).unwrap(), "three");
+
+        // Array slicing
+        assert_eq!(expand_str("${ARR[1,2]}", &env, &opts).unwrap(), "one");
+        assert_eq!(expand_str("${ARR[2,3]}", &env, &opts).unwrap(), "two");
+
+        // Array length
+        assert_eq!(expand_str("${#ARR}", &env, &opts).unwrap(), "3");
     }
 
     #[test]
-    fn test_env_source_slice() {
-        let env: &[(&str, &str)] = &[("FOO", "baz")];
-        assert_eq!(expand_env("prefix_$FOO", &env), "prefix_baz");
+    fn test_associative_array_operations() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Associative array access
+        assert_eq!(expand_str("${MAP[key1]}", &env, &opts).unwrap(), "val1");
+        assert_eq!(expand_str("${MAP[key2]}", &env, &opts).unwrap(), "val2");
+        assert_eq!(expand_str("${MAP[nonexistent]}", &env, &opts).unwrap(), "");
     }
 
     #[test]
-    fn test_env_source_fn_adapter() {
-        let env_fn = FnEnvSource(|key: &str| if key == "FOO" { Some("baz".into()) } else { None });
-        assert_eq!(expand_env("abc$FOO", &env_fn), "abcbaz");
+    fn test_zsh_flags() {
+        let mut env2 = create_test_env();
+        env2.set_scalar("TEXT", "Hello World");
+        env2.set_scalar("LOWER", "hello world");
+        let opts = test_options();
+
+        // Case conversion flags
+        assert_eq!(expand_str("${(U)LOWER}", &env2, &opts).unwrap(), "HELLO WORLD");
+        assert_eq!(expand_str("${(L)TEXT}", &env2, &opts).unwrap(), "hello world");
+
+        // Quote flag
+        env2.set_scalar("SPACED", "hello world");
+        assert_eq!(expand_str("${(q)SPACED}", &env2, &opts).unwrap(), "'hello world'");
+
+        // Split flag
+        env2.set_scalar("CSV", "a,b,c");
+        assert_eq!(expand_str("${(s:,:)CSV}", &env2, &opts).unwrap(), "a b c");
+
+        // Join flag for arrays
+        let env = create_test_env();
+        assert_eq!(expand_str("${(j:,:)ARR}", &env, &opts).unwrap(), "one,two,three");
     }
 
     #[test]
-    fn test_chain_env_source() {
-        let env1 = [("FOO", "a")];
-        let mut env2 = HashMap::new();
-        env2.insert("BAR".into(), "b".into());
-        let chain = EnvSourceChain {
-            primary: &env1[..],
-            fallback: &env2,
+    fn test_path_modifiers() {
+        let mut env2 = create_test_env();
+        env2.set_scalar("FILEPATH", "/path/to/file.txt");
+        let opts = test_options();
+
+        // Path modifiers
+        assert_eq!(expand_str("${FILEPATH:h}", &env2, &opts).unwrap(), "/path/to");
+        assert_eq!(expand_str("${FILEPATH:t}", &env2, &opts).unwrap(), "file.txt");
+        assert_eq!(expand_str("${FILEPATH:r}", &env2, &opts).unwrap(), "/path/to/file");
+        assert_eq!(expand_str("${FILEPATH:e}", &env2, &opts).unwrap(), "txt");
+
+        // Chained modifiers
+        assert_eq!(expand_str("${FILEPATH:t:r}", &env2, &opts).unwrap(), "file");
+    }
+
+    #[test]
+    fn test_nested_expansions() {
+        let mut env = create_test_env();
+        env.set_scalar("VAR1", "FOO");
+        env.set_scalar("VAR2", "default_value");
+        let opts = test_options();
+
+        // Nested expansions in word
+        assert_eq!(expand_str("${FOO:-${VAR2}}", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("${UNSET:-${VAR2}}", &env, &opts).unwrap(), "default_value");
+
+        // Nested in pattern/replacement
+        env.set_scalar("PATTERN", "o");
+        env.set_scalar("REPL", "X");
+        env.set_scalar("TARGET", "hello");
+        assert_eq!(expand_str("${TARGET/${PATTERN}/${REPL}}", &env, &opts).unwrap(), "hellX");
+    }
+
+    #[test]
+    fn test_complex_scenarios() {
+        let mut env = create_test_env();
+        env.set_scalar("CONFIG_FILE", "/etc/app/config.json");
+        env.set_scalar("BACKUP_DIR", "/backup");
+        env.set_scalar("DATE", "2023-12-01");
+        let opts = test_options();
+
+        // Complex real-world example
+        let backup_path = "${BACKUP_DIR}/${CONFIG_FILE:t:r}_${DATE}.bak";
+        assert_eq!(expand_str(backup_path, &env, &opts).unwrap(), "/backup/config_2023-12-01.bak");
+
+        // Multiple operations
+        env.set_scalar("URL", "https://example.com/path/file.html");
+        assert_eq!(expand_str("${URL#*://}", &env, &opts).unwrap(), "example.com/path/file.html");
+        assert_eq!(expand_str("${URL##*/}", &env, &opts).unwrap(), "file.html");
+        assert_eq!(expand_str("${URL%.*}", &env, &opts).unwrap(), "https://example.com/path/file");
+    }
+
+    #[test]
+    fn test_error_cases() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Malformed expansions
+        assert!(parse_braced("${FOO").is_err()); // Unclosed brace
+        assert!(parse_braced("${FOO:}").is_err()); // Invalid operation
+
+        // Bad substitution errors should be caught during parsing
+        assert!(expand_str("${}", &env, &opts).is_err());
+    }
+
+    #[test]
+    fn test_env_operations() {
+        let mut env = Env::new();
+
+        // Test environment operations
+        env.set_scalar("TEST", "value");
+        assert!(env.is_set("TEST"));
+        assert!(env.is_set_and_non_empty("TEST"));
+        assert_eq!(env.get("TEST").unwrap().to_scalar(), "value");
+
+        env.set_scalar("EMPTY", "");
+        assert!(env.is_set("EMPTY"));
+        assert!(!env.is_set_and_non_empty("EMPTY"));
+
+        env.unset("TEST");
+        assert!(!env.is_set("TEST"));
+
+        // Test value operations
+        let scalar = Value::scalar("test");
+        assert_eq!(scalar.len(), 4);
+        assert!(!scalar.is_empty());
+
+        let array = Value::array(vec!["a", "b", "c"]);
+        assert_eq!(array.len(), 3);
+        assert_eq!(array.to_scalar(), "a b c");
+
+        let empty_array = Value::array(Vec::<String>::new());
+        assert!(empty_array.is_empty());
+        assert_eq!(empty_array.len(), 0);
+    }
+
+    #[test]
+    fn test_glob_matching() {
+        use crate::eval::glob_match;
+
+        // Basic glob patterns
+        assert!(glob_match("hello", "hello"));
+        assert!(!glob_match("hello", "world"));
+
+        // Wildcard patterns
+        assert!(glob_match("h*", "hello"));
+        assert!(glob_match("h*o", "hello"));
+        assert!(glob_match("*", "anything"));
+        assert!(glob_match("*.*", "file.txt"));
+
+        // Question mark patterns
+        assert!(glob_match("h?llo", "hello"));
+        assert!(glob_match("h?llo", "hallo"));
+        assert!(!glob_match("h?llo", "hllo"));
+
+        // Character classes
+        assert!(glob_match("h[aei]llo", "hello"));
+        assert!(glob_match("h[aei]llo", "hallo"));
+        assert!(!glob_match("h[aei]llo", "hollo"));
+    }
+
+    #[test]
+    fn test_parser_edge_cases() {
+        let env = create_test_env();
+        let opts = test_options();
+
+        // Test parsing edge cases
+        assert_eq!(expand_str("${FOO}", &env, &opts).unwrap(), "bar");
+        assert_eq!(expand_str("$FOO", &env, &opts).unwrap(), "bar");
+
+        // Mixed literal and expansion
+        assert_eq!(expand_str("prefix${FOO}suffix", &env, &opts).unwrap(), "prefixbarsuffix");
+        assert_eq!(expand_str("${FOO}${USER}", &env, &opts).unwrap(), "bartestuser");
+
+        // No expansion
+        assert_eq!(expand_str("no expansion here", &env, &opts).unwrap(), "no expansion here");
+        assert_eq!(expand_str("literal $ dollar", &env, &opts).unwrap(), "literal $ dollar");
+    }
+
+    #[test]
+    fn test_options_modes() {
+        let env = create_test_env();
+
+        // Test different shell modes
+        let zsh_opts = Options {
+            mode: Mode::Zsh,
+            ..Default::default()
         };
-        assert_eq!(expand_env("$FOO:$BAR:$BAZ", &chain), "a:b:");
+        let bash_opts = Options {
+            mode: Mode::Bash,
+            ..Default::default()
+        };
+        let posix_opts = Options {
+            mode: Mode::Posix,
+            ..Default::default()
+        };
+
+        // Basic functionality should work in all modes
+        assert_eq!(expand_str("${FOO}", &env, &zsh_opts).unwrap(), "bar");
+        assert_eq!(expand_str("${FOO}", &env, &bash_opts).unwrap(), "bar");
+        assert_eq!(expand_str("${FOO}", &env, &posix_opts).unwrap(), "bar");
     }
 
     #[test]
-    fn test_recursive_expand() {
-        let mut env = HashMap::new();
-        env.insert("FOO".into(), "$BAR".into());
-        env.insert("BAR".into(), "hello".into());
-        assert_eq!(expand_env_recursive("$FOO world", &env), "hello world");
-    }
+    fn test_security_options() {
+        let env = create_test_env();
 
-    #[test]
-    fn test_recursive_multi_layer() {
-        let mut env = HashMap::new();
-        env.insert("A".into(), "$B".into());
-        env.insert("B".into(), "$C".into());
-        env.insert("C".into(), "$D".into());
-        env.insert("D".into(), "42".into());
-        assert_eq!(expand_env_recursive("A=$A, B=$B, C=$C, D=$D", &env), "A=42, B=42, C=42, D=42");
-    }
+        // Test security-sensitive options
+        let safe_opts = Options {
+            allow_exec_subst: false,
+            allow_flag_e: false,
+            ..Default::default()
+        };
+        let _unsafe_opts = Options {
+            allow_exec_subst: true,
+            allow_flag_e: true,
+            ..Default::default()
+        };
 
-    #[test]
-    fn test_recursive_prevent_infinite() {
-        let mut env = HashMap::new();
-        env.insert("LOOP".into(), "$LOOP".into());
-        let res = expand_env_recursive("start:$LOOP:end", &env);
-        // 最多递归8次，最后返回原样
-        assert!(res.contains("$LOOP"));
+        // Command substitution should be disabled by default
+        assert!(expand_str("$(echo test)", &env, &safe_opts).unwrap().contains("$(echo test)"));
+
+        // (e) flag should be disabled by default
+        let mut test_env = create_test_env();
+        test_env.set_scalar("EXPAND_ME", "$FOO");
+        assert!(expand_str("${(e)EXPAND_ME}", &test_env, &safe_opts).is_err());
     }
 }
