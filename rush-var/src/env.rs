@@ -1,6 +1,37 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
-/// 抽象环境变量读取接口，用于执行阶段从任意来源获取变量值
+/// 抽象环境变量读取接口：在执行阶段从“任意来源”读取变量值。
+///
+/// 设计要点：
+/// - 返回值采用本库自定义的 [`Value`]，以统一标量/数组/关联数组三种形态；
+/// - 与 shell 语义一致：
+///   - “是否已设置”与“是否为空”是两件事（`${name-...}` 与 `${name:-...}` 的语义差异会用到）；
+///   - 特殊参数（如 `$?`, `$$`, `$0`, `$#`, `$*`, `$@` 等）通过 [`get_special`] 提供；
+///   - 位置参数（`$1`, `$2`, ...）通过 [`get_positional`] 提供。
+///
+/// 你可以为任意后端实现此 trait，例如：
+/// - 使用本 crate 自带的 [`Env`]（可变的内存实现，便于测试）；
+/// - 直接为 `HashMap<String, String>` / `BTreeMap<String, String>` 使用内置适配；
+/// - 使用 [`SystemEnv`] 从进程环境中读取变量。
+///
+/// 示例：从 `HashMap<String, String>` 扩展变量
+/// ```rust
+/// use std::collections::HashMap;
+/// use rush_var::{expand_str, EnvVars, Options};
+///
+/// let mut m = HashMap::new();
+/// m.insert("FOO".to_string(), "bar".to_string());
+/// let out = expand_str("$FOO", &m, &Options::default()).unwrap();
+/// assert_eq!(out, "bar");
+/// ```
+///
+/// 示例：使用系统环境 `SystemEnv`
+/// ```rust,ignore
+/// use rush_var::{expand_str, Options, env::SystemEnv};
+/// // 注意：示例忽略运行以避免修改进程环境；实际使用时直接读取现有环境变量：
+/// // let out = expand_str("${HOME}", &SystemEnv, &Options::default()).unwrap();
+/// // println!("{}", out);
+/// ```
 pub trait EnvVars {
     /// 获取普通变量，返回拥有所有权的 Value（便于从不同后端构造）
     fn get_var(&self, name: &str) -> Option<Value>;
@@ -224,6 +255,73 @@ impl EnvVars for Env {
     }
 }
 
+/// 读取系统环境的适配器。
+///
+/// 限制：
+/// - 普通变量视作标量（String）；
+/// - 大多数“特殊参数”（如 `$?`, `$-`, `$!`, `$*`, `$@`）无法从进程环境得知，返回 None；
+/// - `$`（PID）与 `$0`（程序名）有基本实现；
+/// - 位置参数 `$1..` 使用 `std::env::args()` 的程序参数近似提供（跳过 `$0`）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SystemEnv;
+
+impl EnvVars for SystemEnv {
+    fn get_var(&self, name: &str) -> Option<Value> {
+        std::env::var(name).ok().map(Value::scalar)
+    }
+
+    fn is_set(&self, name: &str) -> bool {
+        std::env::var_os(name).is_some()
+    }
+
+    fn get_special(&self, ch: char) -> Option<String> {
+        match ch {
+            '$' => Some(std::process::id().to_string()),
+            '0' => std::env::args().next(),
+            _ => None,
+        }
+    }
+
+    fn get_positional(&self, n: u32) -> Option<String> {
+        if n == 0 { return std::env::args().next(); }
+        std::env::args().skip(1).nth((n - 1) as usize)
+    }
+}
+
+/// 为 HashMap<String, String> 提供开箱即用的适配：
+/// - 所有变量按标量对待；
+/// - 不支持特殊与位置参数（返回 None）。
+impl EnvVars for HashMap<String, String> {
+    fn get_var(&self, name: &str) -> Option<Value> { self.get(name).cloned().map(Value::scalar) }
+    fn is_set(&self, name: &str) -> bool { self.contains_key(name) }
+    fn get_special(&self, _ch: char) -> Option<String> { None }
+    fn get_positional(&self, _n: u32) -> Option<String> { None }
+}
+
+/// 为 BTreeMap<String, String> 提供适配：与 HashMap 版本相同。
+impl EnvVars for BTreeMap<String, String> {
+    fn get_var(&self, name: &str) -> Option<Value> { self.get(name).cloned().map(Value::scalar) }
+    fn is_set(&self, name: &str) -> bool { self.contains_key(name) }
+    fn get_special(&self, _ch: char) -> Option<String> { None }
+    fn get_positional(&self, _n: u32) -> Option<String> { None }
+}
+
+/// 为 HashMap<String, Value> 提供适配：可直接承载数组/关联数组。
+impl EnvVars for HashMap<String, Value> {
+    fn get_var(&self, name: &str) -> Option<Value> { self.get(name).cloned() }
+    fn is_set(&self, name: &str) -> bool { self.contains_key(name) }
+    fn get_special(&self, _ch: char) -> Option<String> { None }
+    fn get_positional(&self, _n: u32) -> Option<String> { None }
+}
+
+/// 为 BTreeMap<String, Value> 提供适配：可直接承载数组/关联数组。
+impl EnvVars for BTreeMap<String, Value> {
+    fn get_var(&self, name: &str) -> Option<Value> { self.get(name).cloned() }
+    fn is_set(&self, name: &str) -> bool { self.contains_key(name) }
+    fn get_special(&self, _ch: char) -> Option<String> { None }
+    fn get_positional(&self, _n: u32) -> Option<String> { None }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,6 +504,31 @@ mod tests {
         // Unset non-existent variable (should not panic)
         env.unset("NONEXISTENT");
     }
+
+    #[test]
+    fn test_hashmap_string_adapter() {
+        use crate::eval::{expand_str, Options};
+        let mut m: HashMap<String, String> = HashMap::new();
+        m.insert("FOO".into(), "bar".into());
+        let out = expand_str("$FOO", &m, &Options::default()).unwrap();
+        assert_eq!(out, "bar");
+    // 未设置变量的裸用法按当前语义返回错误
+    assert!(expand_str("$MISSING", &m, &Options::default()).is_err());
+    // 使用默认值操作符则返回默认值
+    let out2 = expand_str("${MISSING-default}", &m, &Options::default()).unwrap();
+    assert_eq!(out2, "default");
+    }
+
+    #[test]
+    fn test_hashmap_value_adapter() {
+        use crate::eval::{expand_str, Options};
+        let mut m: HashMap<String, Value> = HashMap::new();
+        m.insert("ARR".into(), Value::array(vec!["a", "b"]));
+        let out = expand_str("$ARR", &m, &Options::default()).unwrap();
+        assert_eq!(out, "a b");
+    }
+
+    // 不对 SystemEnv 做强断言测试以避免修改/依赖外部进程环境。
 
     #[test]
     fn test_env_special_parameters() {

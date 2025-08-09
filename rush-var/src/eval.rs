@@ -1,6 +1,12 @@
 use crate::ast::*;
 use crate::env::{EnvVars, Value};
-use std::path::Path;
+
+mod glob;
+mod path;
+mod flags;
+mod ops;
+pub use glob::glob_match;
+use path::apply_path_modifier;
 
 /// Configuration options for expansion behavior
 #[derive(Debug, Clone)]
@@ -226,39 +232,7 @@ fn handle_defaulting_operation<E: EnvVars + ?Sized>(
     env: &E,
     opt: &Options,
 ) -> Result<String, Error> {
-    match op {
-        DefaultOp::Dash => {
-            if should_use_default {
-                evaluate_word_list(word, env, opt)
-            } else {
-                inner_result
-            }
-        }
-        DefaultOp::Assign => {
-            if should_use_default {
-                let default_val = evaluate_word_list(word, env, opt)?;
-                // TODO: Implement assignment to env
-                Ok(default_val)
-            } else {
-                inner_result
-            }
-        }
-        DefaultOp::Plus => {
-            if should_use_default {
-                Ok(String::new())
-            } else {
-                evaluate_word_list(word, env, opt)
-            }
-        }
-        DefaultOp::QMark => {
-            if should_use_default {
-                let msg = evaluate_word_list(word, env, opt)?;
-                Err(Error::Eval(msg))
-            } else {
-                inner_result
-            }
-        }
-    }
+    ops::handle_defaulting_operation(inner_result, should_use_default, op, word, env, opt)
 }
 
 /// Get value for a target (variable name, special parameter, or positional)
@@ -332,486 +306,41 @@ fn apply_index(value: &Value, index: &Index) -> Result<String, Error> {
 }
 
 /// Calculate array index, handling negative indices
-fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> {
-    // Check for overflow conditions
-    if i == i64::MAX || i == i64::MIN {
-        return Err(Error::IndexOutOfBounds(format!("Index out of range: {}", i)));
-    }
-
-    let idx = if i < 0 {
-        let pos = len as i64 + i;
-        if pos < 0 {
-            return Ok(usize::MAX);
-        } // Out of bounds
-        pos as usize
-    } else {
-        if i == 0 {
-            return Ok(usize::MAX);
-        } // 1-based indexing, 0 is invalid
-        (i - 1) as usize // Convert from 1-based to 0-based
-    };
-    Ok(idx)
-}
+fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> { ops::calculate_array_index(i, len) }
 
 /// Calculate slice indices for arrays and strings
-fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) {
-    let start_idx = if start < 0 {
-        0
-    } else {
-        ((start - 1) as usize).min(len) // Convert from 1-based to 0-based
-    };
-
-    let end_idx = if end < 0 {
-        len
-    } else {
-        ((end - 1) as usize).min(len) // Convert from 1-based to 0-based
-    };
-
-    (start_idx, end_idx)
-}
+fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) { ops::calculate_slice_indices(start, end, len) }
 
 /// Evaluate a list of words
-fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> {
-    let mut result = String::new();
-
-    for word in words {
-        match word {
-            Word::Text(text) => result.push_str(text),
-            Word::Param(expr) => {
-                let val = evaluate_expr(expr, env, opt)?;
-                result.push_str(&val);
-            }
-            Word::CmdSubst(cmd) => {
-                if opt.allow_exec_subst {
-                    // TODO: Execute command
-                    return Err(Error::Unsupported("command substitution not implemented".to_string()));
-                } else {
-                    result.push_str(&format!("$({}", cmd));
-                    result.push(')');
-                }
-            }
-            Word::ArithSubst(expr) => {
-                // TODO: Implement arithmetic evaluation
-                result.push_str(&format!("$(({})", expr));
-                result.push(')');
-            }
-        }
-    }
-
-    Ok(result)
-}
+fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> { ops::evaluate_word_list(words, env, opt) }
 
 /// Apply a zsh flag to a value
-fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> {
-    match &flag.kind {
-        ZFlag::U => Ok(value.to_uppercase()),
-        ZFlag::L => Ok(value.to_lowercase()),
-        ZFlag::C => {
-            if let Some(first_char) = value.chars().next() {
-                let mut result = String::new();
-                result.push(first_char.to_uppercase().next().unwrap_or(first_char));
-                result.push_str(&value[first_char.len_utf8()..]);
-                Ok(result)
-            } else {
-                Ok(value.to_string())
-            }
-        }
-        ZFlag::Q => {
-            // Shell quote - simple implementation
-            if value.chars().any(|c| c.is_whitespace()) {
-                Ok(format!("'{}'", value.replace('\'', "'\\''")))
-            } else {
-                Ok(value.to_string())
-            }
-        }
-        ZFlag::Unquote => {
-            // Remove shell quotes - simple implementation
-            let len = value.len();
-            if len >= 2 {
-                let first = value.chars().next().unwrap();
-                let last = value.chars().last().unwrap();
+fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> { flags::apply_flag(value, flag, env, opt) }
 
-                if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
-                    Ok(value.chars().skip(1).take(len - 2).collect())
-                } else {
-                    Ok(value.to_string())
-                }
-            } else {
-                Ok(value.to_string())
-            }
-        }
-        ZFlag::F => {
-            // Split on newlines and rejoin with spaces
-            Ok(value.lines().collect::<Vec<_>>().join(" "))
-        }
-        ZFlag::Z | ZFlag::ZExt => {
-            // Shell word splitting - simple implementation
-            Ok(value.split_whitespace().collect::<Vec<_>>().join(" "))
-        }
-        ZFlag::Unique => {
-            let mut seen = std::collections::HashSet::new();
-            let words: Vec<&str> = value.split_whitespace().filter(|&word| seen.insert(word)).collect();
-            Ok(words.join(" "))
-        }
-        ZFlag::O => {
-            let mut words: Vec<&str> = value.split_whitespace().collect();
-            words.sort();
-            Ok(words.join(" "))
-        }
-        ZFlag::ODesc => {
-            let mut words: Vec<&str> = value.split_whitespace().collect();
-            words.sort();
-            words.reverse();
-            Ok(words.join(" "))
-        }
-        ZFlag::K | ZFlag::V | ZFlag::T => {
-            // These flags need access to the original variable
-            // For now, return as-is
-            Ok(value.to_string())
-        }
-        ZFlag::L2 { width, fill: _fill, pad } => {
-            let w: usize = width.parse().unwrap_or(0);
-            let pad_char = pad.chars().next().unwrap_or(' ');
-            let formatted = format!("{:width$}", value, width = w);
-            if pad_char == ' ' {
-                Ok(formatted)
-            } else {
-                Ok(formatted.replace(' ', &pad_char.to_string()))
-            }
-        }
-        ZFlag::R2 { width, fill: _fill, pad } => {
-            let w: usize = width.parse().unwrap_or(0);
-            let pad_char = pad.chars().next().unwrap_or(' ');
-            let formatted = format!("{:>width$}", value, width = w);
-            if pad_char == ' ' {
-                Ok(formatted)
-            } else {
-                Ok(formatted.replace(' ', &pad_char.to_string()))
-            }
-        }
-        ZFlag::J { sep: _ } => {
-            // Join array elements - but we can't access the original array here
-            // This needs to be handled at a higher level
-            Ok(value.to_string())
-        }
-        ZFlag::S { sep } => {
-            // Split string on separator
-            Ok(value.split(sep).collect::<Vec<_>>().join(" "))
-        }
-        ZFlag::VDisplay => {
-            // Display with escape sequences visible
-            Ok(value
-                .chars()
-                .map(|c| match c {
-                    '\n' => "\\n".to_string(),
-                    '\t' => "\\t".to_string(),
-                    '\r' => "\\r".to_string(),
-                    '\\' => "\\\\".to_string(),
-                    _ => c.to_string(),
-                })
-                .collect())
-        }
-        ZFlag::P => {
-            // Indirection - look up variable by name
-            if let Some(val) = env.get_var(value) {
-                Ok(val.to_scalar())
-            } else {
-                Ok(String::new())
-            }
-        }
-        ZFlag::E => {
-            if opt.allow_flag_e {
-                // Re-expand the result
-                expand_str(value, env, opt)
-            } else {
-                Err(Error::Unsupported("(e) flag disabled for security".to_string()))
-            }
-        }
-    }
-}
-
-/// Apply path modifier to a value
-fn apply_path_modifier(value: &str, modifier: &PathMod) -> String {
-    let path = Path::new(value);
-
-    match modifier {
-        PathMod::H => {
-            // dirname
-            if value.is_empty() {
-                ".".to_string()
-            } else {
-                path.parent()
-                    .map(|p| {
-                        let parent_str = p.to_string_lossy();
-                        if parent_str.is_empty() {
-                            ".".to_string()
-                        } else {
-                            parent_str.to_string()
-                        }
-                    })
-                    .unwrap_or_else(|| ".".to_string())
-            }
-        }
-        PathMod::T => {
-            // basename
-            if value.ends_with('/') && value != "/" {
-                "".to_string()
-            } else {
-                path.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| value.to_string())
-            }
-        }
-        PathMod::R => {
-            // root (remove extension)
-            path.with_extension("").to_string_lossy().to_string()
-        }
-        PathMod::E => {
-            // extension
-            path.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default()
-        }
-        PathMod::A | PathMod::LowerA => {
-            // realpath - just return as-is for now (TODO: implement proper realpath)
-            value.to_string()
-        }
-    }
-}
 
 /// Remove prefix matching pattern
-fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
-    if long {
-        // Longest match - find the longest prefix that matches pattern
-        let mut best_match = 0;
-        for i in 1..=value.len() {
-            let prefix = &value[..i];
-            if glob_match(pattern, prefix) {
-                best_match = i;
-            }
-        }
-        Ok(value[best_match..].to_string())
-    } else {
-        // Shortest match - find first matching prefix
-        for i in 1..=value.len() {
-            let prefix = &value[..i];
-            if glob_match(pattern, prefix) {
-                return Ok(value[i..].to_string());
-            }
-        }
-        Ok(value.to_string())
-    }
-}
+fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error> { ops::remove_prefix(value, pattern, long) }
 
 /// Remove suffix matching pattern
-fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
-    let mut matching_positions = Vec::new();
-
-    // Find all matching suffix positions
-    for i in 0..=value.len() {
-        let suffix = &value[i..];
-        if glob_match(pattern, suffix) {
-            matching_positions.push(i);
-        }
-    }
-
-    if matching_positions.is_empty() {
-        return Ok(value.to_string());
-    }
-
-    if long {
-        // Longest match - choose the earliest position (longest suffix)
-        let pos = matching_positions[0];
-        Ok(value[..pos].to_string())
-    } else {
-        // Shortest match - choose the latest position (shortest suffix)
-        let pos = matching_positions[matching_positions.len() - 1];
-        Ok(value[..pos].to_string())
-    }
-}
+fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error> { ops::remove_suffix(value, pattern, long) }
 
 /// Replace pattern in value
-fn replace_pattern(value: &str, pattern: &str, replacement: &str, scope: &ReplaceScope) -> Result<String, Error> {
-    match scope {
-        ReplaceScope::First => {
-            // Replace first occurrence
-            if let Some(pos) = find_pattern_match(value, pattern) {
-                let mut result = String::new();
-                result.push_str(&value[..pos.0]);
-                result.push_str(replacement);
-                result.push_str(&value[pos.1..]);
-                Ok(result)
-            } else {
-                Ok(value.to_string())
-            }
-        }
-        ReplaceScope::Global => {
-            // Replace all occurrences
-            let mut result = value.to_string();
-            let mut matches = find_all_pattern_matches(value, pattern);
-            matches.reverse(); // Process from end to start to maintain indices
-
-            for (start, end) in matches {
-                result.replace_range(start..end, replacement);
-            }
-
-            Ok(result)
-        }
-        ReplaceScope::AnchorPrefix => {
-            // Replace if pattern matches at start
-            if let Some(stripped) = value.strip_prefix(pattern) {
-                Ok(format!("{}{}", replacement, stripped))
-            } else {
-                Ok(value.to_string())
-            }
-        }
-        ReplaceScope::AnchorSuffix => {
-            // Replace if pattern matches at end
-            if let Some(stripped) = value.strip_suffix(pattern) {
-                Ok(format!("{}{}", stripped, replacement))
-            } else {
-                Ok(value.to_string())
-            }
-        }
-    }
-}
+fn replace_pattern(value: &str, pattern: &str, replacement: &str, scope: &ReplaceScope) -> Result<String, Error> { ops::replace_pattern(value, pattern, replacement, scope) }
 
 /// Extract substring
-fn substring(value: &str, offset: i64, len: Option<i64>) -> Result<String, Error> {
-    let chars: Vec<char> = value.chars().collect();
-    let total_len = chars.len() as i64;
+fn substring(value: &str, offset: i64, len: Option<i64>) -> Result<String, Error> { ops::substring(value, offset, len) }
 
-    let start_pos = if offset < 0 {
-        (total_len + offset).max(0) as usize
-    } else {
-        offset as usize
-    };
-
-    if start_pos >= chars.len() {
-        return Ok(String::new());
-    }
-
-    let end_pos = if let Some(l) = len {
-        if l < 0 {
-            chars.len()
-        } else {
-            (start_pos + l as usize).min(chars.len())
-        }
-    } else {
-        chars.len()
-    };
-
-    Ok(chars[start_pos..end_pos].iter().collect())
-}
-
-/// Simple glob matching implementation
-pub fn glob_match(pattern: &str, text: &str) -> bool {
-    glob_match_recursive(pattern, text)
-}
-
-fn glob_match_recursive(pattern: &str, text: &str) -> bool {
-    let pat_chars: Vec<char> = pattern.chars().collect();
-    let txt_chars: Vec<char> = text.chars().collect();
-
-    glob_match_chars(&pat_chars, &txt_chars, 0, 0)
-}
-
-fn glob_match_chars(pattern: &[char], text: &[char], pi: usize, ti: usize) -> bool {
-    if pi >= pattern.len() {
-        return ti >= text.len();
-    }
-
-    match pattern[pi] {
-        '*' => {
-            // Try matching zero or more characters
-            if glob_match_chars(pattern, text, pi + 1, ti) {
-                return true;
-            }
-            if ti < text.len() {
-                glob_match_chars(pattern, text, pi, ti + 1)
-            } else {
-                false
-            }
-        }
-        '?' => {
-            if ti < text.len() {
-                glob_match_chars(pattern, text, pi + 1, ti + 1)
-            } else {
-                false
-            }
-        }
-        '[' => {
-            // Character class - simplified implementation
-            if ti >= text.len() {
-                return false;
-            }
-
-            let mut end_bracket = pi + 1;
-            while end_bracket < pattern.len() && pattern[end_bracket] != ']' {
-                end_bracket += 1;
-            }
-
-            if end_bracket >= pattern.len() {
-                // No closing bracket, treat as literal
-                if pattern[pi] == text[ti] {
-                    glob_match_chars(pattern, text, pi + 1, ti + 1)
-                } else {
-                    false
-                }
-            } else {
-                let class = &pattern[pi + 1..end_bracket];
-                let ch = text[ti];
-
-                let matches = if !class.is_empty() && class[0] == '!' {
-                    // Negated character class
-                    let class_chars = &class[1..];
-                    !class_chars.contains(&ch)
-                } else {
-                    // Regular character class
-                    class.contains(&ch)
-                };
-
-                if matches {
-                    glob_match_chars(pattern, text, end_bracket + 1, ti + 1)
-                } else {
-                    false
-                }
-            }
-        }
-        _c => {
-            if ti < text.len() && pattern[pi] == text[ti] {
-                glob_match_chars(pattern, text, pi + 1, ti + 1)
-            } else {
-                false
-            }
-        }
-    }
-}
 
 /// Find first pattern match position
-fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> {
-    text.find(pattern).map(|pos| (pos, pos + pattern.len()))
-}
+// removed: obsolete local wrapper for ops::find_pattern_match
 
 /// Find all pattern match positions  
-fn find_all_pattern_matches(text: &str, pattern: &str) -> Vec<(usize, usize)> {
-    let mut matches = Vec::new();
+// removed: obsolete local wrapper for ops::find_all_pattern_matches
+#[cfg(test)]
+fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> { ops::find_pattern_match(text, pattern) }
+#[cfg(test)]
+fn find_all_pattern_matches(text: &str, pattern: &str) -> Vec<(usize, usize)> { ops::find_all_pattern_matches(text, pattern) }
 
-    if pattern.is_empty() {
-        return matches;
-    }
-
-    let mut start = 0;
-    while start < text.len() {
-        if let Some(pos) = text[start..].find(pattern) {
-            let abs_pos = start + pos;
-            matches.push((abs_pos, abs_pos + pattern.len()));
-            start = abs_pos + 1; // Move by 1 to find overlapping matches
-        } else {
-            break;
-        }
-    }
-
-    matches
-}
 
 #[cfg(test)]
 mod tests {
