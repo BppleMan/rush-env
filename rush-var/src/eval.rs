@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::env::{Env, Value};
+use crate::env::{EnvVars, Value};
 use std::path::Path;
 
 /// Configuration options for expansion behavior
@@ -38,7 +38,7 @@ impl Default for Options {
 }
 
 /// Main expansion function - expands all parameter expansions in input string
-pub fn expand_str(input: &str, env: &Env, opt: &Options) -> Result<String, Error> {
+pub fn expand_str<E: EnvVars + ?Sized>(input: &str, env: &E, opt: &Options) -> Result<String, Error> {
     let expansions = crate::parser::find_expansions(input)?;
 
     if expansions.is_empty() {
@@ -66,7 +66,7 @@ pub fn expand_str(input: &str, env: &Env, opt: &Options) -> Result<String, Error
 }
 
 /// Evaluate a parameter expression
-pub fn evaluate_expr(expr: &ParamExpr, env: &Env, opt: &Options) -> Result<String, Error> {
+pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Options) -> Result<String, Error> {
     match expr {
         ParamExpr::Ref { target, index } => {
             let value = get_target_value(target, env)?;
@@ -152,7 +152,7 @@ pub fn evaluate_expr(expr: &ParamExpr, env: &Env, opt: &Options) -> Result<Strin
             let var_name = evaluate_expr(inner, env, opt)?;
 
             // Then look up that variable
-            if let Some(value) = env.get(&var_name) {
+            if let Some(value) = env.get_var(&var_name) {
                 Ok(value.to_scalar())
             } else {
                 Ok(String::new())
@@ -218,12 +218,12 @@ pub fn evaluate_expr(expr: &ParamExpr, env: &Env, opt: &Options) -> Result<Strin
 }
 
 /// Handle defaulting operations (:-,  :=,  :+,  :?)
-fn handle_defaulting_operation(
+fn handle_defaulting_operation<E: EnvVars + ?Sized>(
     inner_result: Result<String, Error>,
     should_use_default: bool,
     op: &DefaultOp,
     word: &[Word],
-    env: &Env,
+    env: &E,
     opt: &Options,
 ) -> Result<String, Error> {
     match op {
@@ -262,7 +262,7 @@ fn handle_defaulting_operation(
 }
 
 /// Get value for a target (variable name, special parameter, or positional)
-fn get_target_value(target: &Target, env: &Env) -> Result<Value, Error> {
+fn get_target_value<E: EnvVars + ?Sized>(target: &Target, env: &E) -> Result<Value, Error> {
     if let Some(special) = target.special {
         if let Some(val) = env.get_special(special) {
             Ok(Value::scalar(val))
@@ -275,15 +275,15 @@ fn get_target_value(target: &Target, env: &Env) -> Result<Value, Error> {
         } else {
             Ok(Value::scalar(String::new()))
         }
-    } else if let Some(value) = env.get(&target.name) {
-        Ok(value.clone())
+    } else if let Some(value) = env.get_var(&target.name) {
+        Ok(value)
     } else {
         Err(Error::Eval(format!("undefined variable: {}", target.name)))
     }
 }
 
 /// Check if target is set (exists in environment)
-fn is_target_set(target: &Target, env: &Env) -> bool {
+fn is_target_set<E: EnvVars + ?Sized>(target: &Target, env: &E) -> bool {
     target.special.is_some() || target.positional.is_some() || env.is_set(&target.name)
 }
 
@@ -371,7 +371,7 @@ fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) {
 }
 
 /// Evaluate a list of words
-fn evaluate_word_list(words: &[Word], env: &Env, opt: &Options) -> Result<String, Error> {
+fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> {
     let mut result = String::new();
 
     for word in words {
@@ -402,7 +402,7 @@ fn evaluate_word_list(words: &[Word], env: &Env, opt: &Options) -> Result<String
 }
 
 /// Apply a zsh flag to a value
-fn apply_flag(value: &str, flag: &ZshFlag, env: &Env, opt: &Options) -> Result<String, Error> {
+fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> {
     match &flag.kind {
         ZFlag::U => Ok(value.to_uppercase()),
         ZFlag::L => Ok(value.to_lowercase()),
@@ -513,7 +513,7 @@ fn apply_flag(value: &str, flag: &ZshFlag, env: &Env, opt: &Options) -> Result<S
         }
         ZFlag::P => {
             // Indirection - look up variable by name
-            if let Some(val) = env.get(value) {
+            if let Some(val) = env.get_var(value) {
                 Ok(val.to_scalar())
             } else {
                 Ok(String::new())

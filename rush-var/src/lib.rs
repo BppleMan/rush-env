@@ -37,9 +37,18 @@ pub mod eval;
 
 // Re-export main types and functions
 pub use ast::*;
-pub use env::{Env, Value};
+pub use env::{Env, EnvVars, Value};
 pub use eval::{GlobKind, Mode, Options, evaluate_expr, expand_str};
 pub use parser::parse_braced;
+
+/// 统一导出的错误类型别名，便于 API 使用者引用
+pub type RushVarError = ast::Error;
+
+/// 新 API：直接展开一个表达式，传入任意实现 EnvVars 的环境
+pub fn expand_var(expr: impl AsRef<str>, env_vars: &impl EnvVars) -> Result<String, RushVarError> {
+    let opts = eval::Options::default();
+    eval::expand_str(expr.as_ref(), env_vars, &opts)
+}
 
 #[cfg(test)]
 mod tests {

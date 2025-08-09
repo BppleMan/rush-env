@@ -1,5 +1,17 @@
 use std::collections::BTreeMap;
 
+/// 抽象环境变量读取接口，用于执行阶段从任意来源获取变量值
+pub trait EnvVars {
+    /// 获取普通变量，返回拥有所有权的 Value（便于从不同后端构造）
+    fn get_var(&self, name: &str) -> Option<Value>;
+    /// 变量是否已设置（与是否为空区分开）
+    fn is_set(&self, name: &str) -> bool;
+    /// 获取特殊参数（如 $, ?, -, !, 0, #, *, @ 等）
+    fn get_special(&self, ch: char) -> Option<String>;
+    /// 获取位置参数（$1, $2 ...，$0 另行通过特殊参数 0 获取）
+    fn get_positional(&self, n: u32) -> Option<String>;
+}
+
 /// Represents a shell variable value
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -191,6 +203,24 @@ impl Env {
     /// Get all variable names
     pub fn get_all_names(&self) -> Vec<String> {
         self.vars.keys().cloned().collect()
+    }
+}
+
+impl EnvVars for Env {
+    fn get_var(&self, name: &str) -> Option<Value> {
+        self.get(name).cloned()
+    }
+
+    fn is_set(&self, name: &str) -> bool {
+        self.is_set(name)
+    }
+
+    fn get_special(&self, ch: char) -> Option<String> {
+        Env::get_special(self, ch)
+    }
+
+    fn get_positional(&self, n: u32) -> Option<String> {
+        Env::get_positional(self, n)
     }
 }
 
