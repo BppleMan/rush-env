@@ -6,6 +6,14 @@ release:
 lint:
     cargo clippy
 
+# Run code coverage tests for a specific package
+cov package:
+    cargo tarpaulin -p {{ package }} --out Html --out Json --out Xml --out Lcov --output-dir target/{{ package }}-coverage
+
+# Run code coverage tests for rush-var package specifically
+cov-rush-var:
+    cargo tarpaulin -p rush-var --exclude-files "rush-env/*" --exclude-files "rush-say/*" --out Html --out Json --out Xml --out Lcov --output-dir target/rush-var-coverage
+
 bin:
     cargo run --bin bin -- arg1
 
