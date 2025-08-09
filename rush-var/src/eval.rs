@@ -5,6 +5,8 @@ mod glob;
 mod path;
 mod flags;
 mod ops;
+mod evaluator;
+pub use evaluator::{evaluate_expr, expand_str};
 pub use glob::glob_match;
 use path::apply_path_modifier;
 
@@ -43,185 +45,7 @@ impl Default for Options {
     }
 }
 
-/// Main expansion function - expands all parameter expansions in input string
-pub fn expand_str<E: EnvVars + ?Sized>(input: &str, env: &E, opt: &Options) -> Result<String, Error> {
-    let expansions = crate::parser::find_expansions(input)?;
-
-    if expansions.is_empty() {
-        return Ok(input.to_string());
-    }
-
-    let mut result = String::new();
-    let mut last_end = 0;
-
-    for (start, end, expr) in expansions {
-        // Add text before expansion
-        result.push_str(&input[last_end..start]);
-
-        // Evaluate expansion
-        let expanded = evaluate_expr(&expr, env, opt)?;
-        result.push_str(&expanded);
-
-        last_end = end;
-    }
-
-    // Add remaining text
-    result.push_str(&input[last_end..]);
-
-    Ok(result)
-}
-
-/// Evaluate a parameter expression
-pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Options) -> Result<String, Error> {
-    match expr {
-        ParamExpr::Ref { target, index } => {
-            let value = get_target_value(target, env)?;
-            apply_index(&value, index)
-        }
-
-        ParamExpr::Length { inner } => {
-            // For length operation with arrays, we need special handling
-            // ${#ARR} should return the length of the first element, not the joined string
-            if let ParamExpr::Ref { target, index } = inner.as_ref() {
-                if let Index::None = index {
-                    let value = get_target_value(target, env)?;
-                    match &value {
-                        Value::Array(arr) => {
-                            // For arrays without index, return length of first element
-                            let first_len = arr.first().map(|s| s.len()).unwrap_or(0);
-                            Ok(first_len.to_string())
-                        }
-                        Value::Assoc(map) => {
-                            // For associative arrays, return number of keys
-                            Ok(map.len().to_string())
-                        }
-                        Value::Scalar(s) => Ok(s.len().to_string()),
-                    }
-                } else {
-                    // For indexed access, evaluate normally and get string length
-                    let result = apply_index(&get_target_value(target, env)?, index)?;
-                    Ok(result.len().to_string())
-                }
-            } else {
-                // For other expressions, evaluate and get string length
-                let result = evaluate_expr(inner, env, opt)?;
-                Ok(result.len().to_string())
-            }
-        }
-
-        ParamExpr::Defaulting { inner, colon, op, word } => {
-            let inner_result = evaluate_expr(inner, env, opt);
-
-            let should_use_default = match inner_result {
-                Ok(ref value) => {
-                    if *colon {
-                        value.is_empty()
-                    } else {
-                        // For non-colon variants, check if variable is unset
-                        match inner.as_ref() {
-                            ParamExpr::Ref { target, .. } => !is_target_set(target, env),
-                            _ => false,
-                        }
-                    }
-                }
-                Err(_) => true, // Variable is unset
-            };
-
-            handle_defaulting_operation(inner_result, should_use_default, op, word, env, opt)
-        }
-
-        ParamExpr::Remove { inner, op, pattern } => {
-            let value = evaluate_expr(inner, env, opt)?;
-            let pattern_str = evaluate_word_list(pattern, env, opt)?;
-
-            match op {
-                RemoveOp::Prefix { long } => remove_prefix(&value, &pattern_str, *long),
-                RemoveOp::Suffix { long } => remove_suffix(&value, &pattern_str, *long),
-            }
-        }
-
-        ParamExpr::Replace { inner, scope, pat, repl } => {
-            let value = evaluate_expr(inner, env, opt)?;
-            let pattern_str = evaluate_word_list(pat, env, opt)?;
-            let replacement = evaluate_word_list(repl, env, opt)?;
-
-            replace_pattern(&value, &pattern_str, &replacement, scope)
-        }
-
-        ParamExpr::Substring { inner, offset, len } => {
-            let value = evaluate_expr(inner, env, opt)?;
-            substring(&value, *offset, *len)
-        }
-
-        ParamExpr::Indirection { inner, style: _ } => {
-            // First evaluate inner to get variable name
-            let var_name = evaluate_expr(inner, env, opt)?;
-
-            // Then look up that variable
-            if let Some(value) = env.get_var(&var_name) {
-                Ok(value.to_scalar())
-            } else {
-                Ok(String::new())
-            }
-        }
-
-        ParamExpr::ZshFlags { flags, inner } => {
-            // Special handling for join flag - it needs access to the original array
-            if let Some(join_flag) = flags.iter().find(|f| matches!(f.kind, ZFlag::J { .. })) {
-                if let ZFlag::J { sep } = &join_flag.kind {
-                    if let ParamExpr::Ref {
-                        target,
-                        index: Index::None,
-                    } = inner.as_ref()
-                    {
-                        let raw_value = get_target_value(target, env)?;
-                        match &raw_value {
-                            Value::Array(arr) => {
-                                let mut result = arr.join(sep);
-                                // Apply remaining flags to the joined result
-                                for flag in flags {
-                                    if !matches!(flag.kind, ZFlag::J { .. }) {
-                                        result = apply_flag(&result, flag, env, opt)?;
-                                    }
-                                }
-                                return Ok(result);
-                            }
-                            Value::Assoc(map) => {
-                                let joined = map.values().map(|s| s.as_str()).collect::<Vec<_>>().join(sep);
-                                let mut result = joined;
-                                // Apply remaining flags to the joined result
-                                for flag in flags {
-                                    if !matches!(flag.kind, ZFlag::J { .. }) {
-                                        result = apply_flag(&result, flag, env, opt)?;
-                                    }
-                                }
-                                return Ok(result);
-                            }
-                            _ => {} // Fall through to normal processing
-                        }
-                    }
-                }
-            }
-
-            // Normal flag processing
-            let mut value = evaluate_expr(inner, env, opt)?;
-            for flag in flags {
-                value = apply_flag(&value, flag, env, opt)?;
-            }
-            Ok(value)
-        }
-
-        ParamExpr::Modifiers { inner, mods } => {
-            let mut value = evaluate_expr(inner, env, opt)?;
-
-            for modifier in mods {
-                value = apply_path_modifier(&value, modifier);
-            }
-
-            Ok(value)
-        }
-    }
-}
+// expand_str & evaluate_expr 已迁移到 evaluator.rs 并在此重导出
 
 /// Handle defaulting operations (:-,  :=,  :+,  :?)
 fn handle_defaulting_operation<E: EnvVars + ?Sized>(
@@ -306,30 +130,44 @@ fn apply_index(value: &Value, index: &Index) -> Result<String, Error> {
 }
 
 /// Calculate array index, handling negative indices
-fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> { ops::calculate_array_index(i, len) }
+fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> {
+    ops::calculate_array_index(i, len)
+}
 
 /// Calculate slice indices for arrays and strings
-fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) { ops::calculate_slice_indices(start, end, len) }
+fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) {
+    ops::calculate_slice_indices(start, end, len)
+}
 
 /// Evaluate a list of words
-fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> { ops::evaluate_word_list(words, env, opt) }
+fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> {
+    ops::evaluate_word_list(words, env, opt)
+}
 
 /// Apply a zsh flag to a value
-fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> { flags::apply_flag(value, flag, env, opt) }
-
+fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> {
+    flags::apply_flag(value, flag, env, opt)
+}
 
 /// Remove prefix matching pattern
-fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error> { ops::remove_prefix(value, pattern, long) }
+fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
+    ops::remove_prefix(value, pattern, long)
+}
 
 /// Remove suffix matching pattern
-fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error> { ops::remove_suffix(value, pattern, long) }
+fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
+    ops::remove_suffix(value, pattern, long)
+}
 
 /// Replace pattern in value
-fn replace_pattern(value: &str, pattern: &str, replacement: &str, scope: &ReplaceScope) -> Result<String, Error> { ops::replace_pattern(value, pattern, replacement, scope) }
+fn replace_pattern(value: &str, pattern: &str, replacement: &str, scope: &ReplaceScope) -> Result<String, Error> {
+    ops::replace_pattern(value, pattern, replacement, scope)
+}
 
 /// Extract substring
-fn substring(value: &str, offset: i64, len: Option<i64>) -> Result<String, Error> { ops::substring(value, offset, len) }
-
+fn substring(value: &str, offset: i64, len: Option<i64>) -> Result<String, Error> {
+    ops::substring(value, offset, len)
+}
 
 /// Find first pattern match position
 // removed: obsolete local wrapper for ops::find_pattern_match
@@ -337,10 +175,13 @@ fn substring(value: &str, offset: i64, len: Option<i64>) -> Result<String, Error
 /// Find all pattern match positions  
 // removed: obsolete local wrapper for ops::find_all_pattern_matches
 #[cfg(test)]
-fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> { ops::find_pattern_match(text, pattern) }
+fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> {
+    ops::find_pattern_match(text, pattern)
+}
 #[cfg(test)]
-fn find_all_pattern_matches(text: &str, pattern: &str) -> Vec<(usize, usize)> { ops::find_all_pattern_matches(text, pattern) }
-
+fn find_all_pattern_matches(text: &str, pattern: &str) -> Vec<(usize, usize)> {
+    ops::find_all_pattern_matches(text, pattern)
+}
 
 #[cfg(test)]
 mod tests {
