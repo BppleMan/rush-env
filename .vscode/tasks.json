@@ -1,0 +1,29 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "just-lint-justfile",
+			"type": "shell",
+			"command": "just --fmt --check",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "just-lint-justfile",
+			"type": "shell",
+			"command": "just --fmt --check",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "just-check-parse",
+			"type": "shell",
+			"command": "just --list",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

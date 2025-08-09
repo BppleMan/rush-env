@@ -1011,7 +1011,7 @@ mod tests {
 
     #[test]
     fn test_eval_cmd_arith_in_wordlist_defaulting() {
-        let mut env = create_test_env();
+        let env = create_test_env();
         let opts = test_options();
 
         // Command substitution inside default word list (disabled => literal kept)
@@ -1023,7 +1023,7 @@ mod tests {
 
     #[test]
     fn test_eval_index_edge_cases_and_errors() {
-        let mut env = create_test_env();
+        let env = create_test_env();
         let opts = test_options();
 
         // Assoc array slice should yield empty string (unsupported)
@@ -1082,7 +1082,7 @@ mod tests {
 
     #[test]
     fn test_default_assign_operation_eval() {
-        let mut env = create_test_env();
+        let env = create_test_env();
         let opts = test_options();
         // := returns evaluated default (assignment side-effect is TODO)
         assert_eq!(expand_str("${UNSET:=def}", &env, &opts).unwrap(), "def");
@@ -1159,7 +1159,7 @@ mod tests {
 
     #[test]
     fn test_eval_index_slice_negative_bounds() {
-        let mut env = create_test_env();
+        let env = create_test_env();
         let opts = test_options();
         // Negative start and end on array slice
         assert_eq!(expand_str("${ARR[-2,-1]}", &env, &opts).unwrap(), "one two three");
@@ -1176,7 +1176,6 @@ mod tests {
         assert_eq!(expand_str("${X///Z}", &env, &opts).unwrap(), "abc");
     }
 
-    #[test]
     // removed: extra colons between path modifiers aren't supported by current parser
     #[test]
     fn test_scalar_slice_negative_indices() {
@@ -1194,7 +1193,6 @@ mod tests {
         assert_eq!(expand_str("$_var", &env, &opts).unwrap(), "X");
     }
 
-    #[test]
     // removed: multi-arg (l)/(r) parsing with identical start/end ':' not supported
     #[test]
     fn test_parse_wordlist_missing_closing_paren() {

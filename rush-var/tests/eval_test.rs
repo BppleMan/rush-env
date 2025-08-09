@@ -164,7 +164,7 @@ fn undefined_special_parameter_errors() {
 
 #[test]
 fn cmd_and_arith_subst_in_word_list_are_literal_when_exec_disabled() {
-    let mut env = Env::new();
+    let env = Env::new();
     // Unset X so defaulting path is taken
     let out = expand_str("${X:-$(echo hi)}", &env, &opts()).unwrap();
     assert_eq!(out, "$(echo hi)");
