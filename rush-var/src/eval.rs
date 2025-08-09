@@ -337,7 +337,7 @@ fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> {
     if i == i64::MAX || i == i64::MIN {
         return Err(Error::IndexOutOfBounds(format!("Index out of range: {}", i)));
     }
-    
+
     let idx = if i < 0 {
         let pos = len as i64 + i;
         if pos < 0 {
@@ -604,7 +604,7 @@ fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error
 /// Remove suffix matching pattern
 fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
     let mut matching_positions = Vec::new();
-    
+
     // Find all matching suffix positions
     for i in 0..=value.len() {
         let suffix = &value[i..];
@@ -612,11 +612,11 @@ fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error
             matching_positions.push(i);
         }
     }
-    
+
     if matching_positions.is_empty() {
         return Ok(value.to_string());
     }
-    
+
     if long {
         // Longest match - choose the earliest position (longest suffix)
         let pos = matching_positions[0];
@@ -759,7 +759,7 @@ fn glob_match_chars(pattern: &[char], text: &[char], pi: usize, ti: usize) -> bo
             } else {
                 let class = &pattern[pi + 1..end_bracket];
                 let ch = text[ti];
-                
+
                 let matches = if !class.is_empty() && class[0] == '!' {
                     // Negated character class
                     let class_chars = &class[1..];
@@ -794,11 +794,11 @@ fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> {
 /// Find all pattern match positions  
 fn find_all_pattern_matches(text: &str, pattern: &str) -> Vec<(usize, usize)> {
     let mut matches = Vec::new();
-    
+
     if pattern.is_empty() {
         return matches;
     }
-    
+
     let mut start = 0;
     while start < text.len() {
         if let Some(pos) = text[start..].find(pattern) {
