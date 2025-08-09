@@ -48,11 +48,11 @@ llvm-cov package:
     mkdir -p target/llvm-cov/profraws
     PROFILE_DIR="$(pwd)/target/llvm-cov/profraws"
     LLVM_PROFILE_FILE="${PROFILE_DIR}/%m-%p.profraw" RUSTFLAGS="-C instrument-coverage -C link-dead-code -C opt-level=0" cargo test -p {{package}} --tests --all-features
-    find "${PROFILE_DIR}" -maxdepth 1 -name '*.profraw' -print0 | xargs -0 "${LLVM_PROFDATA}" merge -sparse -o target/llvm-cov/coverage.profdata
-    CRATE_NAME="$(printf %s "{{package}}" | tr '-' '_')"
-    OBJS=$(find target/debug/deps -type f -perm -111 \( -name "${CRATE_NAME}-*" -o -name "${CRATE_NAME}_*" \) | tr '\n' ' ')
-    "${LLVM_COV}" report ${OBJS} -instr-profile=target/llvm-cov/coverage.profdata -use-color -ignore-filename-regex='/\.cargo/registry|rustc|target/'
-    "${LLVM_COV}" show ${OBJS} -instr-profile=target/llvm-cov/coverage.profdata -format=html -output-dir=target/llvm-cov/html -show-line-counts-or-regions -ignore-filename-regex='/\.cargo/registry|rustc|target/'
+    "${LLVM_PROFDATA}" merge -sparse target/llvm-cov/profraws/*.profraw -o target/llvm-cov/coverage.profdata
+    CRATE_NAME="{{package}}"; CRATE_NAME="${CRATE_NAME//-/_}"
+    OBJS=$(find target/debug/deps -type f -perm -111 \( -name "${CRATE_NAME}-*" -o -name "${CRATE_NAME}_*" \))
+    "${LLVM_COV}" report -instr-profile=target/llvm-cov/coverage.profdata -use-color -ignore-filename-regex='/\.cargo/registry|rustc|target/' ${OBJS}
+    "${LLVM_COV}" show   -instr-profile=target/llvm-cov/coverage.profdata -format=html -output-dir=target/llvm-cov/html -show-line-counts-or-regions -ignore-filename-regex='/\.cargo/registry|rustc|target/' ${OBJS}
 
 # Shortcut for rush-var package
 llvm-cov-rush-var:
