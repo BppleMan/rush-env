@@ -333,6 +333,11 @@ fn apply_index(value: &Value, index: &Index) -> Result<String, Error> {
 
 /// Calculate array index, handling negative indices
 fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> {
+    // Check for overflow conditions
+    if i == i64::MAX || i == i64::MIN {
+        return Err(Error::IndexOutOfBounds(format!("Index out of range: {}", i)));
+    }
+    
     let idx = if i < 0 {
         let pos = len as i64 + i;
         if pos < 0 {
@@ -388,7 +393,7 @@ fn evaluate_word_list(words: &[Word], env: &Env, opt: &Options) -> Result<String
             Word::ArithSubst(expr) => {
                 // TODO: Implement arithmetic evaluation
                 result.push_str(&format!("$(({})", expr));
-                result.push_str("))");
+                result.push(')');
             }
         }
     }
@@ -536,15 +541,26 @@ fn apply_path_modifier(value: &str, modifier: &PathMod) -> String {
                 ".".to_string()
             } else {
                 path.parent()
-                    .map(|p| p.to_string_lossy().to_string())
+                    .map(|p| {
+                        let parent_str = p.to_string_lossy();
+                        if parent_str.is_empty() {
+                            ".".to_string()
+                        } else {
+                            parent_str.to_string()
+                        }
+                    })
                     .unwrap_or_else(|| ".".to_string())
             }
         }
         PathMod::T => {
             // basename
-            path.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| value.to_string())
+            if value.ends_with('/') && value != "/" {
+                "".to_string()
+            } else {
+                path.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| value.to_string())
+            }
         }
         PathMod::R => {
             // root (remove extension)
@@ -587,25 +603,28 @@ fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error
 
 /// Remove suffix matching pattern
 fn remove_suffix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
+    let mut matching_positions = Vec::new();
+    
+    // Find all matching suffix positions
+    for i in 0..=value.len() {
+        let suffix = &value[i..];
+        if glob_match(pattern, suffix) {
+            matching_positions.push(i);
+        }
+    }
+    
+    if matching_positions.is_empty() {
+        return Ok(value.to_string());
+    }
+    
     if long {
-        // Longest match
-        let mut best_match = value.len();
-        for i in 0..value.len() {
-            let suffix = &value[i..];
-            if glob_match(pattern, suffix) {
-                best_match = i;
-            }
-        }
-        Ok(value[..best_match].to_string())
+        // Longest match - choose the earliest position (longest suffix)
+        let pos = matching_positions[0];
+        Ok(value[..pos].to_string())
     } else {
-        // Shortest match
-        for i in (0..value.len()).rev() {
-            let suffix = &value[i..];
-            if glob_match(pattern, suffix) {
-                return Ok(value[..i].to_string());
-            }
-        }
-        Ok(value.to_string())
+        // Shortest match - choose the latest position (shortest suffix)
+        let pos = matching_positions[matching_positions.len() - 1];
+        Ok(value[..pos].to_string())
     }
 }
 
@@ -740,8 +759,17 @@ fn glob_match_chars(pattern: &[char], text: &[char], pi: usize, ti: usize) -> bo
             } else {
                 let class = &pattern[pi + 1..end_bracket];
                 let ch = text[ti];
+                
+                let matches = if !class.is_empty() && class[0] == '!' {
+                    // Negated character class
+                    let class_chars = &class[1..];
+                    !class_chars.contains(&ch)
+                } else {
+                    // Regular character class
+                    class.contains(&ch)
+                };
 
-                if class.contains(&ch) {
+                if matches {
                     glob_match_chars(pattern, text, end_bracket + 1, ti + 1)
                 } else {
                     false
@@ -766,12 +794,20 @@ fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> {
 /// Find all pattern match positions  
 fn find_all_pattern_matches(text: &str, pattern: &str) -> Vec<(usize, usize)> {
     let mut matches = Vec::new();
+    
+    if pattern.is_empty() {
+        return matches;
+    }
+    
     let mut start = 0;
-
-    while let Some(pos) = text[start..].find(pattern) {
-        let abs_pos = start + pos;
-        matches.push((abs_pos, abs_pos + pattern.len()));
-        start = abs_pos + pattern.len();
+    while start < text.len() {
+        if let Some(pos) = text[start..].find(pattern) {
+            let abs_pos = start + pos;
+            matches.push((abs_pos, abs_pos + pattern.len()));
+            start = abs_pos + 1; // Move by 1 to find overlapping matches
+        } else {
+            break;
+        }
     }
 
     matches
@@ -832,7 +868,7 @@ mod tests {
 
     #[test]
     fn test_get_target_value() {
-        let mut env = test_env();
+        let env = test_env();
 
         // Regular variable
         let target = Target {
@@ -1092,7 +1128,7 @@ mod tests {
 
         // Long suffix removal
         let result = remove_suffix("hello_world_test", "*test", true).unwrap();
-        assert_eq!(result, "hello");
+        assert_eq!(result, ""); // Long match of *test removes entire string
 
         // No match
         let result = remove_suffix("hello", "*xyz", false).unwrap();

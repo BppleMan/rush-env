@@ -963,7 +963,7 @@ mod tests {
         assert_eq!(expand_str("${NO_EXT:e}", &env, &opts).unwrap(), ""); // No extension
 
         env.set_scalar("JUST_NAME", "filename");
-        assert_eq!(expand_str("${JUST_NAME:h}", &env, &opts).unwrap(), ""); // dirname of bare filename is empty
+        assert_eq!(expand_str("${JUST_NAME:h}", &env, &opts).unwrap(), "."); // dirname of bare filename is current dir
 
         env.set_scalar("ROOT_PATH", "/");
         let result = expand_str("${ROOT_PATH:h}", &env, &opts).unwrap();
