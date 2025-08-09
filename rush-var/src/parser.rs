@@ -599,11 +599,6 @@ impl<'a> Parser<'a> {
                 if self.lexer.matches_str("${") {
                     let nested_expr = self.parse_braced()?;
                     words.push(Word::Param(Box::new(nested_expr)));
-                } else if self.lexer.matches_str("$(") {
-                    self.lexer.consume_str("$(");
-                    let content = self.lexer.read_until_unescaped(')')?;
-                    self.lexer.expect(')')?;
-                    words.push(Word::CmdSubst(content));
                 } else if self.lexer.matches_str("$((") {
                     self.lexer.consume_str("$((");
                     let content = self.lexer.read_until_unescaped(')')?; // TODO: handle nested parens
@@ -612,6 +607,11 @@ impl<'a> Parser<'a> {
                     }
                     self.lexer.consume_str("))");
                     words.push(Word::ArithSubst(content));
+                } else if self.lexer.matches_str("$(") {
+                    self.lexer.consume_str("$(");
+                    let content = self.lexer.read_until_unescaped(')')?;
+                    self.lexer.expect(')')?;
+                    words.push(Word::CmdSubst(content));
                 } else {
                     // Simple $var reference
                     self.lexer.next_char(); // consume '$'
@@ -1448,6 +1448,166 @@ mod tests {
             let expansions = find_expansions(input).unwrap();
             let actual_ranges: Vec<(usize, usize)> = expansions.iter().map(|(start, end, _)| (*start, *end)).collect();
             assert_eq!(actual_ranges, expected_ranges, "Failed for input: {}", input);
+        }
+    }
+
+    #[test]
+    fn test_parser_flags_l_r_with_args() {
+        // Test ${(l:5:)var} - left pad flag with width only
+        let mut parser = Parser::new("${(l:5:)var}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::ZshFlags { flags, .. } = expr {
+            assert_eq!(flags.len(), 1);
+            match &flags[0].kind {
+                ZFlag::L2 { width, fill, pad } => {
+                    assert_eq!(width, "5");
+                    assert_eq!(fill, "");
+                    assert_eq!(pad, "");
+                }
+                other => panic!("Expected L2 flag, got {:?}", other),
+            }
+        } else {
+            panic!("Expected ZshFlags expression");
+        }
+
+        // Test ${(r:5:)var} - right pad flag
+        let mut parser = Parser::new("${(r:5:)var}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::ZshFlags { flags, .. } = expr {
+            assert_eq!(flags.len(), 1);
+            match &flags[0].kind {
+                ZFlag::R2 { width, fill, pad } => {
+                    assert_eq!(width, "5");
+                    assert_eq!(fill, "");
+                    assert_eq!(pad, "");
+                }
+                other => panic!("Expected R2 flag, got {:?}", other),
+            }
+        } else {
+            panic!("Expected ZshFlags expression");
+        }
+    }
+
+    #[test]
+    fn test_parser_index_key_and_slice() {
+        // Test associative array key index
+        let mut parser = Parser::new("${map[key]}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Ref { index, .. } = expr {
+            match index {
+                Index::Key(k) => assert_eq!(k, "key"),
+                _ => panic!("Expected Key index"),
+            }
+        } else {
+            panic!("Expected Ref expression");
+        }
+
+        // Test slice index
+        let mut parser = Parser::new("${arr[1,3]}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Ref { index, .. } = expr {
+            match index {
+                Index::Slice(a, b) => {
+                    assert_eq!(a, 1);
+                    assert_eq!(b, 3);
+                }
+                _ => panic!("Expected Slice index"),
+            }
+        } else {
+            panic!("Expected Ref expression");
+        }
+
+        // Test missing second number in slice
+        let mut parser = Parser::new("${arr[1,]}");
+        let result = parser.parse_braced();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parser_colonless_operations() {
+        // ${var=assign}
+        let mut parser = Parser::new("${var=assign}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Defaulting { op, colon, .. } = expr {
+            assert_eq!(op, DefaultOp::Assign);
+            assert!(!colon);
+        } else {
+            panic!("Expected Assign defaulting");
+        }
+
+        // ${var+alt}
+        let mut parser = Parser::new("${var+alt}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Defaulting { op, colon, .. } = expr {
+            assert_eq!(op, DefaultOp::Plus);
+            assert!(!colon);
+        } else {
+            panic!("Expected Plus defaulting");
+        }
+
+        // ${var?err}
+        let mut parser = Parser::new("${var?err}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Defaulting { op, colon, .. } = expr {
+            assert_eq!(op, DefaultOp::QMark);
+            assert!(!colon);
+        } else {
+            panic!("Expected QMark defaulting");
+        }
+    }
+
+    #[test]
+    fn test_parser_path_modifiers_a_a() {
+        let mut parser = Parser::new("${var:A:a}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Modifiers { mods, .. } = expr {
+            assert_eq!(mods, vec![PathMod::A, PathMod::LowerA]);
+        } else {
+            panic!("Expected Modifiers expression");
+        }
+    }
+
+    #[test]
+    fn test_parser_colon_error() {
+        let mut parser = Parser::new("${var:}");
+        let result = parser.parse_braced();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parser_word_with_substitutions() {
+        // Command substitution
+        let mut parser = Parser::new("${var:-$(echo hi)}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Defaulting { word, .. } = expr {
+            assert!(matches!(word[0], Word::CmdSubst(_)));
+        } else {
+            panic!("Expected Defaulting expression");
+        }
+
+        // Arithmetic substitution
+        let mut parser = Parser::new("${var:-$((1+2))}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Defaulting { word, .. } = expr {
+            assert!(matches!(word[0], Word::ArithSubst(_)));
+        } else {
+            panic!("Expected Defaulting expression");
+        }
+
+        // Invalid arithmetic substitution
+        let mut parser = Parser::new("${var:-$((1+2)}");
+        let result = parser.parse_braced();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parser_word_invalid_dollar() {
+        let mut parser = Parser::new("${var:-$}");
+        let expr = parser.parse_braced().unwrap();
+        if let ParamExpr::Defaulting { word, .. } = expr {
+            assert!(matches!(word[0], Word::Text(ref t) if t == "$"));
+        } else {
+            panic!("Expected Defaulting expression");
         }
     }
 }
