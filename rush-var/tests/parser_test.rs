@@ -121,6 +121,27 @@ fn word_until_unclosed_cmd_subst_errors() {
 }
 
 #[test]
+fn word_until_unclosed_arith_subst_errors() {
+    // $((... 未闭合，期望报错
+    assert!(parse_braced("${v:-$((1+2}").is_err());
+}
+
+#[test]
+fn default_word_lonely_dollar_is_literal_text() {
+    // 默认词中的单独 $ 不是变量，按字面收集为文本
+    let e = parse_braced("${X:-$}").unwrap();
+    if let ParamExpr::Defaulting { word, .. } = e {
+        assert_eq!(word.len(), 1);
+        match &word[0] {
+            Word::Text(t) => assert_eq!(t, "$"),
+            other => panic!("expected Text('$'), got {:?}", other),
+        }
+    } else {
+        panic!("expected Defaulting");
+    }
+}
+
+#[test]
 fn index_negative_number_parses() {
     let e = parse_braced("${arr[-1]}").unwrap();
     if let ParamExpr::Ref { index, .. } = e {
@@ -245,6 +266,12 @@ fn remove_ops_with_empty_pattern_are_noop() {
     } else {
         panic!("expected Remove");
     }
+}
+
+#[test]
+fn array_slice_missing_second_number_errors() {
+    // 缺少第二个数字，期望报错
+    assert!(parse_braced("${arr[1,]}").is_err());
 }
 
 #[test]

@@ -321,28 +321,8 @@ impl<'a> Parser<'a> {
 
                     // Check what comes after ':'
                     match self.lexer.peek() {
-                        Some(ch) if ch.is_ascii_digit() => {
-                            // Substring operation ${name:offset:length}
-                            let offset = self
-                                .lexer
-                                .read_number()
-                                .ok_or_else(|| Error::BadSubstitution("expected offset".to_string()))?;
-
-                            let len = if self.lexer.matches(':') {
-                                self.lexer.next_char(); // consume ':'
-                                self.lexer.read_number()
-                            } else {
-                                None
-                            };
-
-                            expr = ParamExpr::Substring {
-                                inner: Box::new(expr),
-                                offset,
-                                len,
-                            };
-                        }
-                        Some('-') if self.lexer.peek_ahead(1).is_some_and(|c| c.is_ascii_digit()) => {
-                            // Negative offset in substring operation ${name:-5:3}
+                        // Substring operation ${name:offset[:length]} — allow digits or a leading '-' followed by digit
+                        Some(ch) if ch.is_ascii_digit() || (ch == '-' && self.lexer.peek_ahead(1).is_some_and(|c| c.is_ascii_digit())) => {
                             let offset = self
                                 .lexer
                                 .read_number()
@@ -525,7 +505,7 @@ impl<'a> Parser<'a> {
                     mods.push(PathMod::LowerA);
                 }
                 ':' => {
-                    self.lexer.next_char(); // consume ':' and continue
+                    self.lexer.next_char();
                 }
                 _ => break,
             }
