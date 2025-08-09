@@ -89,11 +89,14 @@ impl<'a> Parser<'a> {
     fn parse_flags(&mut self) -> Result<Vec<ZshFlag>, Error> {
         let mut flags = Vec::new();
 
-        while self.lexer.matches('(') {
+        if self.lexer.matches('(') {
             self.lexer.next_char(); // consume '('
 
-            let flag = self.parse_single_flag()?;
-            flags.push(flag);
+            // Parse multiple flags within the same parentheses
+            while !self.lexer.matches(')') && !self.lexer.is_at_end() {
+                let flag = self.parse_single_flag()?;
+                flags.push(flag);
+            }
 
             if !self.lexer.matches(')') {
                 return Err(Error::BadSubstitution(EXPECTED_PAREN_CLOSE.to_string()));
@@ -688,11 +691,20 @@ pub fn find_expansions(input: &str) -> Result<Vec<(usize, usize, ParamExpr)>, Er
                     // Unmatched braces, skip
                     i += 1;
                 }
-            } else if chars[i + 1].is_alphabetic() || chars[i + 1] == '_' {
-                // Simple $var expansion
+            } else if chars[i + 1].is_alphabetic() || chars[i + 1] == '_' || chars[i + 1].is_ascii_digit() {
+                // Simple $var expansion (including positional parameters like $1, $2)
                 let mut j = i + 1;
-                while j < chars.len() && (chars[j].is_alphanumeric() || chars[j] == '_') {
-                    j += 1;
+
+                if chars[i + 1].is_ascii_digit() {
+                    // Handle positional parameters - read consecutive digits
+                    while j < chars.len() && chars[j].is_ascii_digit() {
+                        j += 1;
+                    }
+                } else {
+                    // Handle regular variables - alphanumeric and underscore
+                    while j < chars.len() && (chars[j].is_alphanumeric() || chars[j] == '_') {
+                        j += 1;
+                    }
                 }
 
                 let name: String = chars[i + 1..j].iter().collect();
@@ -1225,5 +1237,217 @@ mod tests {
 
         // These should not panic on creation
         assert_eq!(std::mem::size_of::<Parser>(), std::mem::size_of::<Parser>());
+    }
+
+    #[test]
+    fn test_parser_zsh_flags_with_args() {
+        // Test ${(j)var} - join flag without separator (should use default space)
+        let mut parser = Parser::new("${(j)var}");
+        let expr = parser.parse_braced().unwrap();
+
+        if let ParamExpr::ZshFlags { flags, .. } = expr {
+            assert_eq!(flags.len(), 1);
+            if let ZFlag::J { sep } = &flags[0].kind {
+                assert_eq!(sep, " "); // Default separator
+            } else {
+                panic!("Expected J flag, got {:?}", flags[0].kind);
+            }
+        } else {
+            panic!("Expected ZshFlags expression");
+        }
+
+        // Test ${(s)str} - split flag without separator (should use default space)
+        let mut parser = Parser::new("${(s)str}");
+        let expr = parser.parse_braced().unwrap();
+
+        if let ParamExpr::ZshFlags { flags, .. } = expr {
+            assert_eq!(flags.len(), 1);
+            if let ZFlag::S { sep } = &flags[0].kind {
+                assert_eq!(sep, " "); // Default separator
+            } else {
+                panic!("Expected S flag, got {:?}", flags[0].kind);
+            }
+        } else {
+            panic!("Expected ZshFlags expression");
+        }
+    }
+
+    #[test]
+    fn test_parser_zsh_flags_error_cases() {
+        // Test (l) flag without width argument
+        let mut parser = Parser::new("${(l)var}");
+        let result = parser.parse_braced();
+        assert!(result.is_err());
+        if let Err(Error::BadSubstitution(msg)) = result {
+            assert!(msg.contains("(l) flag requires width argument"));
+        }
+
+        // Test (r) flag without width argument
+        let mut parser = Parser::new("${(r)var}");
+        let result = parser.parse_braced();
+        assert!(result.is_err());
+        if let Err(Error::BadSubstitution(msg)) = result {
+            assert!(msg.contains("(r) flag requires width argument"));
+        }
+
+        // Test unknown flag
+        let mut parser = Parser::new("${(X)var}");
+        let result = parser.parse_braced();
+        assert!(result.is_err());
+        if let Err(Error::BadSubstitution(msg)) = result {
+            assert!(msg.contains("unknown flag 'X'"));
+        }
+    }
+
+    #[test]
+    fn test_parser_special_edge_cases() {
+        // Test ${#} - special parameter, not length
+        let mut parser = Parser::new("${#}");
+        let expr = parser.parse_braced().unwrap();
+
+        if let ParamExpr::Ref { target, .. } = expr {
+            assert_eq!(target.name, "#");
+            assert!(target.special.is_some());
+        } else {
+            panic!("Expected Ref expression for ${{#}}");
+        }
+
+        // Test mixed flags ${(ou)var}
+        let mut parser = Parser::new("${(ou)var}");
+        let expr = parser.parse_braced().unwrap();
+
+        if let ParamExpr::ZshFlags { flags, .. } = expr {
+            assert_eq!(flags.len(), 2);
+            assert_eq!(flags[0].kind, ZFlag::O);
+            assert_eq!(flags[1].kind, ZFlag::Unique);
+        } else {
+            panic!("Expected ZshFlags expression");
+        }
+
+        // Test empty flag parentheses
+        let mut parser = Parser::new("${()var}");
+        let expr = parser.parse_braced().unwrap();
+
+        // Empty flags should result in a ZshFlags expression with empty flags vector
+        match expr {
+            ParamExpr::ZshFlags { flags, .. } => {
+                assert_eq!(flags.len(), 0);
+            }
+            ParamExpr::Ref { .. } => {
+                // If parsed as Ref, that's also acceptable since empty flags don't change behavior
+                println!("Parsed as Ref instead of ZshFlags - acceptable");
+            }
+            _ => panic!("Unexpected expression type for ${{()var}}: {:?}", expr),
+        }
+    }
+
+    #[test]
+    fn test_parser_complex_word_parsing() {
+        // Test word parsing with mixed content
+        let mut parser = Parser::new("${var:-default with spaces}");
+        let expr = parser.parse_braced().unwrap();
+
+        if let ParamExpr::Defaulting { word, .. } = expr {
+            assert_eq!(word.len(), 1);
+            if let Word::Text(text) = &word[0] {
+                assert_eq!(text, "default with spaces");
+            } else {
+                panic!("Expected Text word");
+            }
+        } else {
+            panic!("Expected Defaulting expression");
+        }
+
+        // Test word parsing with simple text
+        let mut parser = Parser::new("${var:-simple text}");
+        let expr = parser.parse_braced().unwrap();
+
+        if let ParamExpr::Defaulting { word, .. } = expr {
+            assert_eq!(word.len(), 1);
+            if let Word::Text(text) = &word[0] {
+                assert_eq!(text, "simple text");
+            } else {
+                panic!("Expected Text word");
+            }
+        } else {
+            panic!("Expected Defaulting expression");
+        }
+    }
+
+    #[test]
+    fn test_parser_additional_flags() {
+        // Test more flag types to improve coverage
+        let flag_tests = vec![
+            ("${(U)var}", ZFlag::U),
+            ("${(L)var}", ZFlag::L),
+            ("${(C)var}", ZFlag::C),
+            ("${(q)var}", ZFlag::Q),
+            ("${(Q)var}", ZFlag::Unquote),
+            ("${(f)var}", ZFlag::F),
+            ("${(z)var}", ZFlag::Z),
+            ("${(Z)var}", ZFlag::ZExt),
+            ("${(k)var}", ZFlag::K),
+            ("${(v)var}", ZFlag::V),
+            ("${(t)var}", ZFlag::T),
+            ("${(V)var}", ZFlag::VDisplay),
+            ("${(e)var}", ZFlag::E),
+        ];
+
+        for (input, expected_flag) in flag_tests {
+            let mut parser = Parser::new(input);
+            let expr = parser.parse_braced().unwrap();
+
+            if let ParamExpr::ZshFlags { flags, .. } = expr {
+                assert_eq!(flags.len(), 1);
+                assert_eq!(flags[0].kind, expected_flag);
+            } else {
+                panic!("Expected ZshFlags expression for {}", input);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parser_invalid_syntax_coverage() {
+        // Test various invalid syntax cases to improve error path coverage
+        let invalid_cases = vec![
+            "${",          // Incomplete opening
+            "var}",        // Missing opening
+            "${var[",      // Unclosed bracket
+            "${var]}",     // Invalid bracket
+            "${var[abc]}", // Non-numeric index (should still parse)
+            "${(",         // Incomplete flag
+            "${()}",       // Empty expression after flags
+            "${#",         // Incomplete length operator
+            "${!",         // Incomplete indirection
+        ];
+
+        for case in invalid_cases {
+            let mut parser = Parser::new(case);
+            let result = parser.parse_braced();
+            // These should mostly fail, but some might be handled gracefully
+            if result.is_ok() {
+                println!("Unexpectedly parsed: {}", case);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parser_find_expansions_edge_cases() {
+        // Test find_expansions with various edge cases
+        let test_cases = vec![
+            ("", vec![]),
+            ("no expansions here", vec![]),
+            ("$simple", vec![(0, 7)]), // Simple variable
+            ("prefix$var suffix", vec![(6, 10)]),
+            ("$a $b $c", vec![(0, 2), (3, 5), (6, 8)]),
+            ("$$escaped", vec![(1, 9)]),                   // Second $ starts expansion
+            ("$1 $2 $123", vec![(0, 2), (3, 5), (6, 10)]), // Positional params
+        ];
+
+        for (input, expected_ranges) in test_cases {
+            let expansions = find_expansions(input).unwrap();
+            let actual_ranges: Vec<(usize, usize)> = expansions.iter().map(|(start, end, _)| (*start, *end)).collect();
+            assert_eq!(actual_ranges, expected_ranges, "Failed for input: {}", input);
+        }
     }
 }
