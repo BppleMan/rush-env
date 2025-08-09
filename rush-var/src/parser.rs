@@ -1,6 +1,12 @@
 use crate::ast::*;
 use crate::lexer::Lexer;
 
+// Constants for commonly used strings
+const DEFAULT_SPACE: &str = " ";
+const EXPECTED_BRACE_START: &str = "expected '${' at start";
+const EXPECTED_BRACE_END: &str = "expected '}' at end";
+const EXPECTED_PAREN_CLOSE: &str = "expected ')' after flag";
+
 /// Parser for shell parameter expansions
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -15,7 +21,7 @@ impl<'a> Parser<'a> {
     pub fn parse_braced(&mut self) -> Result<ParamExpr, Error> {
         // Expect opening ${
         if !self.lexer.consume_str("${") {
-            return Err(Error::BadSubstitution("expected '${' at start".to_string()));
+            return Err(Error::BadSubstitution(EXPECTED_BRACE_START.to_string()));
         }
 
         // Parse flags first if present
@@ -72,7 +78,7 @@ impl<'a> Parser<'a> {
 
         // Expect closing }
         if !self.lexer.matches('}') {
-            return Err(Error::BadSubstitution("expected '}' at end".to_string()));
+            return Err(Error::BadSubstitution(EXPECTED_BRACE_END.to_string()));
         }
         self.lexer.next_char();
 
@@ -90,7 +96,7 @@ impl<'a> Parser<'a> {
             flags.push(flag);
 
             if !self.lexer.matches(')') {
-                return Err(Error::BadSubstitution("expected ')' after flag".to_string()));
+                return Err(Error::BadSubstitution(EXPECTED_PAREN_CLOSE.to_string()));
             }
             self.lexer.next_char(); // consume ')'
         }
@@ -176,10 +182,10 @@ impl<'a> Parser<'a> {
             }),
             'l' => {
                 let args = self.lexer.read_flag_args(':', ':');
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     Ok(ZshFlag {
                         kind: ZFlag::L2 {
-                            width: args.get(0).cloned().unwrap_or_default(),
+                            width: args[0].clone(),
                             fill: args.get(1).cloned().unwrap_or_default(),
                             pad: args.get(2).cloned().unwrap_or_default(),
                         },
@@ -191,10 +197,10 @@ impl<'a> Parser<'a> {
             }
             'r' => {
                 let args = self.lexer.read_flag_args(':', ':');
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     Ok(ZshFlag {
                         kind: ZFlag::R2 {
-                            width: args.get(0).cloned().unwrap_or_default(),
+                            width: args[0].clone(),
                             fill: args.get(1).cloned().unwrap_or_default(),
                             pad: args.get(2).cloned().unwrap_or_default(),
                         },
@@ -208,7 +214,7 @@ impl<'a> Parser<'a> {
                 let args = self.lexer.read_flag_args(':', ':');
                 Ok(ZshFlag {
                     kind: ZFlag::J {
-                        sep: args.get(0).cloned().unwrap_or(" ".to_string()),
+                        sep: args.first().cloned().unwrap_or_else(|| DEFAULT_SPACE.to_string()),
                     },
                     args: vec![],
                 })
@@ -217,7 +223,7 @@ impl<'a> Parser<'a> {
                 let args = self.lexer.read_flag_args(':', ':');
                 Ok(ZshFlag {
                     kind: ZFlag::S {
-                        sep: args.get(0).cloned().unwrap_or(" ".to_string()),
+                        sep: args.first().cloned().unwrap_or_else(|| DEFAULT_SPACE.to_string()),
                     },
                     args: vec![],
                 })
@@ -336,7 +342,7 @@ impl<'a> Parser<'a> {
                                 len,
                             };
                         }
-                        Some('-') if self.lexer.peek_ahead(1).map_or(false, |c| c.is_ascii_digit()) => {
+                        Some('-') if self.lexer.peek_ahead(1).is_some_and(|c| c.is_ascii_digit()) => {
                             // Negative offset in substring operation ${name:-5:3}
                             let offset = self
                                 .lexer

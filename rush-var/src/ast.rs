@@ -186,6 +186,8 @@ pub enum Error {
     BadSubstitution(String),
     Unsupported(String),
     Eval(String),
+    IndexOutOfBounds(String),
+    InvalidPattern(String),
 }
 
 impl std::fmt::Display for Error {
@@ -194,6 +196,8 @@ impl std::fmt::Display for Error {
             Error::BadSubstitution(msg) => write!(f, "bad substitution: {}", msg),
             Error::Unsupported(msg) => write!(f, "unsupported: {}", msg),
             Error::Eval(msg) => write!(f, "evaluation error: {}", msg),
+            Error::IndexOutOfBounds(msg) => write!(f, "index out of bounds: {}", msg),
+            Error::InvalidPattern(msg) => write!(f, "invalid pattern: {}", msg),
         }
     }
 }

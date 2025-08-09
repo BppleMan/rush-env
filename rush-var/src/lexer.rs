@@ -39,7 +39,7 @@ impl<'a> Lexer<'a> {
 
     /// Skip whitespace
     pub fn skip_whitespace(&mut self) {
-        while self.peek().map_or(false, |c| c.is_whitespace()) {
+        while self.peek().is_some_and(|c| c.is_whitespace()) {
             self.next_char();
         }
     }
@@ -62,17 +62,15 @@ impl<'a> Lexer<'a> {
         if let Some(ch) = self.peek() {
             if ch.is_alphabetic() || ch == '_' {
                 self.next_char();
-            } else {
-                return String::new();
-            }
-        }
-
-        // Following chars can be alphanumeric or underscore
-        while let Some(ch) = self.peek() {
-            if ch.is_alphanumeric() || ch == '_' {
-                self.next_char();
-            } else {
-                break;
+                
+                // Following chars can be alphanumeric or underscore
+                while let Some(ch) = self.peek() {
+                    if ch.is_alphanumeric() || ch == '_' {
+                        self.next_char();
+                    } else {
+                        break;
+                    }
+                }
             }
         }
 

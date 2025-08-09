@@ -106,70 +106,22 @@ pub fn evaluate_expr(expr: &ParamExpr, env: &Env, opt: &Options) -> Result<Strin
         ParamExpr::Defaulting { inner, colon, op, word } => {
             let inner_result = evaluate_expr(inner, env, opt);
 
-            match inner_result {
-                Ok(value) => {
-                    let is_empty = value.is_empty();
-                    let should_use_default = if *colon {
-                        is_empty
+            let should_use_default = match inner_result {
+                Ok(ref value) => {
+                    if *colon {
+                        value.is_empty()
                     } else {
                         // For non-colon variants, check if variable is unset
                         match inner.as_ref() {
                             ParamExpr::Ref { target, .. } => !is_target_set(target, env),
                             _ => false,
                         }
-                    };
+                    }
+                }
+                Err(_) => true, // Variable is unset
+            };
 
-                    match op {
-                        DefaultOp::Dash => {
-                            if should_use_default {
-                                evaluate_word_list(word, env, opt)
-                            } else {
-                                Ok(value)
-                            }
-                        }
-                        DefaultOp::Assign => {
-                            if should_use_default {
-                                let default_val = evaluate_word_list(word, env, opt)?;
-                                // TODO: Implement assignment to env
-                                Ok(default_val)
-                            } else {
-                                Ok(value)
-                            }
-                        }
-                        DefaultOp::Plus => {
-                            if should_use_default {
-                                Ok(String::new())
-                            } else {
-                                evaluate_word_list(word, env, opt)
-                            }
-                        }
-                        DefaultOp::QMark => {
-                            if should_use_default {
-                                let msg = evaluate_word_list(word, env, opt)?;
-                                Err(Error::Eval(msg))
-                            } else {
-                                Ok(value)
-                            }
-                        }
-                    }
-                }
-                Err(_) => {
-                    // Variable is unset
-                    match op {
-                        DefaultOp::Dash => evaluate_word_list(word, env, opt),
-                        DefaultOp::Assign => {
-                            let default_val = evaluate_word_list(word, env, opt)?;
-                            // TODO: Implement assignment
-                            Ok(default_val)
-                        }
-                        DefaultOp::Plus => Ok(String::new()),
-                        DefaultOp::QMark => {
-                            let msg = evaluate_word_list(word, env, opt)?;
-                            Err(Error::Eval(msg))
-                        }
-                    }
-                }
-            }
+            handle_defaulting_operation(inner_result, should_use_default, op, word, env, opt)
         }
 
         ParamExpr::Remove { inner, op, pattern } => {
@@ -209,49 +161,47 @@ pub fn evaluate_expr(expr: &ParamExpr, env: &Env, opt: &Options) -> Result<Strin
 
         ParamExpr::ZshFlags { flags, inner } => {
             // Special handling for join flag - it needs access to the original array
-            for flag in flags {
-                if let ZFlag::J { sep } = &flag.kind {
-                    if let ParamExpr::Ref { target, index } = inner.as_ref() {
-                        if let Index::None = index {
-                            let raw_value = get_target_value(target, env)?;
-                            match &raw_value {
-                                Value::Array(arr) => {
-                                    let joined = arr.join(sep);
-                                    // Apply remaining flags to the joined result
-                                    let mut result = joined;
-                                    for remaining_flag in flags {
-                                        if !matches!(remaining_flag.kind, ZFlag::J { .. }) {
-                                            result = apply_flag(&result, remaining_flag, env, opt)?;
-                                        }
+            if let Some(join_flag) = flags.iter().find(|f| matches!(f.kind, ZFlag::J { .. })) {
+                if let ZFlag::J { sep } = &join_flag.kind {
+                    if let ParamExpr::Ref {
+                        target,
+                        index: Index::None,
+                    } = inner.as_ref()
+                    {
+                        let raw_value = get_target_value(target, env)?;
+                        match &raw_value {
+                            Value::Array(arr) => {
+                                let mut result = arr.join(sep);
+                                // Apply remaining flags to the joined result
+                                for flag in flags {
+                                    if !matches!(flag.kind, ZFlag::J { .. }) {
+                                        result = apply_flag(&result, flag, env, opt)?;
                                     }
-                                    return Ok(result);
                                 }
-                                Value::Assoc(map) => {
-                                    let values: Vec<&String> = map.values().collect();
-                                    let joined = values.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(sep);
-                                    let mut result = joined;
-                                    for remaining_flag in flags {
-                                        if !matches!(remaining_flag.kind, ZFlag::J { .. }) {
-                                            result = apply_flag(&result, remaining_flag, env, opt)?;
-                                        }
-                                    }
-                                    return Ok(result);
-                                }
-                                _ => break, // Fall through to normal processing
+                                return Ok(result);
                             }
+                            Value::Assoc(map) => {
+                                let joined = map.values().map(|s| s.as_str()).collect::<Vec<_>>().join(sep);
+                                let mut result = joined;
+                                // Apply remaining flags to the joined result
+                                for flag in flags {
+                                    if !matches!(flag.kind, ZFlag::J { .. }) {
+                                        result = apply_flag(&result, flag, env, opt)?;
+                                    }
+                                }
+                                return Ok(result);
+                            }
+                            _ => {} // Fall through to normal processing
                         }
                     }
-                    break; // Only handle the first join flag
                 }
             }
 
             // Normal flag processing
             let mut value = evaluate_expr(inner, env, opt)?;
-
             for flag in flags {
                 value = apply_flag(&value, flag, env, opt)?;
             }
-
             Ok(value)
         }
 
@@ -263,6 +213,50 @@ pub fn evaluate_expr(expr: &ParamExpr, env: &Env, opt: &Options) -> Result<Strin
             }
 
             Ok(value)
+        }
+    }
+}
+
+/// Handle defaulting operations (:-,  :=,  :+,  :?)
+fn handle_defaulting_operation(
+    inner_result: Result<String, Error>,
+    should_use_default: bool,
+    op: &DefaultOp,
+    word: &[Word],
+    env: &Env,
+    opt: &Options,
+) -> Result<String, Error> {
+    match op {
+        DefaultOp::Dash => {
+            if should_use_default {
+                evaluate_word_list(word, env, opt)
+            } else {
+                inner_result
+            }
+        }
+        DefaultOp::Assign => {
+            if should_use_default {
+                let default_val = evaluate_word_list(word, env, opt)?;
+                // TODO: Implement assignment to env
+                Ok(default_val)
+            } else {
+                inner_result
+            }
+        }
+        DefaultOp::Plus => {
+            if should_use_default {
+                Ok(String::new())
+            } else {
+                evaluate_word_list(word, env, opt)
+            }
+        }
+        DefaultOp::QMark => {
+            if should_use_default {
+                let msg = evaluate_word_list(word, env, opt)?;
+                Err(Error::Eval(msg))
+            } else {
+                inner_result
+            }
         }
     }
 }
@@ -281,109 +275,94 @@ fn get_target_value(target: &Target, env: &Env) -> Result<Value, Error> {
         } else {
             Ok(Value::scalar(String::new()))
         }
+    } else if let Some(value) = env.get(&target.name) {
+        Ok(value.clone())
     } else {
-        if let Some(value) = env.get(&target.name) {
-            Ok(value.clone())
-        } else {
-            Err(Error::Eval(format!("undefined variable: {}", target.name)))
-        }
+        Err(Error::Eval(format!("undefined variable: {}", target.name)))
     }
 }
 
 /// Check if target is set (exists in environment)
 fn is_target_set(target: &Target, env: &Env) -> bool {
-    if target.special.is_some() {
-        true // Special parameters are always considered set
-    } else if target.positional.is_some() {
-        true // Positional parameters are always considered set (may be empty)
-    } else {
-        env.is_set(&target.name)
-    }
+    target.special.is_some() || target.positional.is_some() || env.is_set(&target.name)
 }
 
 /// Apply array/string indexing
 fn apply_index(value: &Value, index: &Index) -> Result<String, Error> {
-    match index {
-        Index::None => Ok(value.to_scalar()),
-        Index::One(i) => {
-            match value {
-                Value::Array(arr) => {
-                    let idx = if *i < 0 {
-                        (arr.len() as i64 + i) as usize
-                    } else {
-                        (*i - 1) as usize // 1-based indexing
-                    };
+    match (value, index) {
+        (_, Index::None) => Ok(value.to_scalar()),
 
-                    Ok(arr.get(idx).cloned().unwrap_or_default())
-                }
-                Value::Assoc(map) => {
-                    let key = i.to_string();
-                    Ok(map.get(&key).cloned().unwrap_or_default())
-                }
-                Value::Scalar(s) => {
-                    // String indexing - character at position
-                    let chars: Vec<char> = s.chars().collect();
-                    let idx = if *i < 0 {
-                        (chars.len() as i64 + i) as usize
-                    } else {
-                        (*i - 1) as usize
-                    };
-
-                    Ok(chars.get(idx).map(|c| c.to_string()).unwrap_or_default())
-                }
-            }
+        (Value::Array(arr), Index::One(i)) => {
+            let idx = calculate_array_index(*i, arr.len())?;
+            Ok(arr.get(idx).cloned().unwrap_or_default())
         }
-        Index::Key(key) => {
-            match value {
-                Value::Assoc(map) => Ok(map.get(key).cloned().unwrap_or_default()),
-                _ => {
-                    // For non-associative arrays, string keys don't make sense
-                    Ok(String::new())
-                }
-            }
+
+        (Value::Assoc(map), Index::One(i)) => {
+            let key = i.to_string();
+            Ok(map.get(&key).cloned().unwrap_or_default())
         }
-        Index::Slice(start, end) => {
-            match value {
-                Value::Array(arr) => {
-                    let start_idx = if *start < 0 {
-                        0
-                    } else {
-                        (*start - 1) as usize // Convert from 1-based to 0-based
-                    };
 
-                    let end_idx = if *end < 0 {
-                        arr.len()
-                    } else {
-                        (*end - 1) as usize // Convert from 1-based to 0-based
-                    };
-
-                    let slice = if start_idx < arr.len() && start_idx <= end_idx {
-                        &arr[start_idx..end_idx.min(arr.len())]
-                    } else {
-                        &[]
-                    };
-
-                    Ok(slice.join(" "))
-                }
-                Value::Scalar(s) => {
-                    let chars: Vec<char> = s.chars().collect();
-                    let start_idx = if *start < 0 { 0 } else { (*start - 1) as usize };
-
-                    let end_idx = if *end < 0 { chars.len() } else { (*end - 1) as usize };
-
-                    let slice = if start_idx < chars.len() && start_idx <= end_idx {
-                        &chars[start_idx..end_idx.min(chars.len())]
-                    } else {
-                        &[]
-                    };
-
-                    Ok(slice.iter().collect())
-                }
-                Value::Assoc(_) => Ok(String::new()), // Unsupported
-            }
+        (Value::Scalar(s), Index::One(i)) => {
+            let chars: Vec<char> = s.chars().collect();
+            let idx = calculate_array_index(*i, chars.len())?;
+            Ok(chars.get(idx).map(|c| c.to_string()).unwrap_or_default())
         }
-        Index::StrSlice(offset, len) => substring(&value.to_scalar(), *offset, Some(*len)),
+
+        (Value::Assoc(map), Index::Key(key)) => Ok(map.get(key).cloned().unwrap_or_default()),
+
+        (_, Index::Key(_)) => Ok(String::new()), // For non-associative arrays
+
+        (Value::Array(arr), Index::Slice(start, end)) => {
+            let (start_idx, end_idx) = calculate_slice_indices(*start, *end, arr.len());
+            let slice = arr.get(start_idx..end_idx).unwrap_or(&[]);
+            Ok(slice.join(" "))
+        }
+
+        (Value::Scalar(s), Index::Slice(start, end)) => {
+            let chars: Vec<char> = s.chars().collect();
+            let (start_idx, end_idx) = calculate_slice_indices(*start, *end, chars.len());
+            let slice = chars.get(start_idx..end_idx).unwrap_or(&[]);
+            Ok(slice.iter().collect())
+        }
+
+        (Value::Assoc(_), Index::Slice(_, _)) => Ok(String::new()), // Unsupported
+
+        (_, Index::StrSlice(offset, len)) => substring(&value.to_scalar(), *offset, Some(*len)),
     }
+}
+
+/// Calculate array index, handling negative indices
+fn calculate_array_index(i: i64, len: usize) -> Result<usize, Error> {
+    let idx = if i < 0 {
+        let pos = len as i64 + i;
+        if pos < 0 {
+            return Ok(usize::MAX);
+        } // Out of bounds
+        pos as usize
+    } else {
+        if i == 0 {
+            return Ok(usize::MAX);
+        } // 1-based indexing, 0 is invalid
+        (i - 1) as usize // Convert from 1-based to 0-based
+    };
+    Ok(idx)
+}
+
+/// Calculate slice indices for arrays and strings
+fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) {
+    let start_idx = if start < 0 {
+        0
+    } else {
+        ((start - 1) as usize).min(len) // Convert from 1-based to 0-based
+    };
+
+    let end_idx = if end < 0 {
+        len
+    } else {
+        ((end - 1) as usize).min(len) // Convert from 1-based to 0-based
+    };
+
+    (start_idx, end_idx)
 }
 
 /// Evaluate a list of words
@@ -423,15 +402,18 @@ fn apply_flag(value: &str, flag: &ZshFlag, env: &Env, opt: &Options) -> Result<S
         ZFlag::U => Ok(value.to_uppercase()),
         ZFlag::L => Ok(value.to_lowercase()),
         ZFlag::C => {
-            let mut chars: Vec<char> = value.chars().collect();
-            if let Some(first) = chars.get_mut(0) {
-                *first = first.to_uppercase().next().unwrap_or(*first);
+            if let Some(first_char) = value.chars().next() {
+                let mut result = String::new();
+                result.push(first_char.to_uppercase().next().unwrap_or(first_char));
+                result.push_str(&value[first_char.len_utf8()..]);
+                Ok(result)
+            } else {
+                Ok(value.to_string())
             }
-            Ok(chars.iter().collect())
         }
         ZFlag::Q => {
             // Shell quote - simple implementation
-            if value.contains(' ') || value.contains('\t') || value.contains('\n') {
+            if value.chars().any(|c| c.is_whitespace()) {
                 Ok(format!("'{}'", value.replace('\'', "'\\''")))
             } else {
                 Ok(value.to_string())
@@ -439,10 +421,16 @@ fn apply_flag(value: &str, flag: &ZshFlag, env: &Env, opt: &Options) -> Result<S
         }
         ZFlag::Unquote => {
             // Remove shell quotes - simple implementation
-            if value.starts_with('"') && value.ends_with('"') {
-                Ok(value[1..value.len() - 1].to_string())
-            } else if value.starts_with('\'') && value.ends_with('\'') {
-                Ok(value[1..value.len() - 1].to_string())
+            let len = value.len();
+            if len >= 2 {
+                let first = value.chars().next().unwrap();
+                let last = value.chars().last().unwrap();
+
+                if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+                    Ok(value.chars().skip(1).take(len - 2).collect())
+                } else {
+                    Ok(value.to_string())
+                }
             } else {
                 Ok(value.to_string())
             }
@@ -479,12 +467,22 @@ fn apply_flag(value: &str, flag: &ZshFlag, env: &Env, opt: &Options) -> Result<S
         ZFlag::L2 { width, fill: _fill, pad } => {
             let w: usize = width.parse().unwrap_or(0);
             let pad_char = pad.chars().next().unwrap_or(' ');
-            Ok(format!("{:width$}", value, width = w).replace(' ', &pad_char.to_string()))
+            let formatted = format!("{:width$}", value, width = w);
+            if pad_char == ' ' {
+                Ok(formatted)
+            } else {
+                Ok(formatted.replace(' ', &pad_char.to_string()))
+            }
         }
         ZFlag::R2 { width, fill: _fill, pad } => {
             let w: usize = width.parse().unwrap_or(0);
             let pad_char = pad.chars().next().unwrap_or(' ');
-            Ok(format!("{:>width$}", value, width = w).replace(' ', &pad_char.to_string()))
+            let formatted = format!("{:>width$}", value, width = w);
+            if pad_char == ' ' {
+                Ok(formatted)
+            } else {
+                Ok(formatted.replace(' ', &pad_char.to_string()))
+            }
         }
         ZFlag::J { sep: _ } => {
             // Join array elements - but we can't access the original array here
@@ -636,16 +634,16 @@ fn replace_pattern(value: &str, pattern: &str, replacement: &str, scope: &Replac
         }
         ReplaceScope::AnchorPrefix => {
             // Replace if pattern matches at start
-            if value.starts_with(pattern) {
-                Ok(format!("{}{}", replacement, &value[pattern.len()..]))
+            if let Some(stripped) = value.strip_prefix(pattern) {
+                Ok(format!("{}{}", replacement, stripped))
             } else {
                 Ok(value.to_string())
             }
         }
         ReplaceScope::AnchorSuffix => {
             // Replace if pattern matches at end
-            if value.ends_with(pattern) {
-                Ok(format!("{}{}", &value[..value.len() - pattern.len()], replacement))
+            if let Some(stripped) = value.strip_suffix(pattern) {
+                Ok(format!("{}{}", stripped, replacement))
             } else {
                 Ok(value.to_string())
             }
@@ -758,12 +756,7 @@ fn glob_match_chars(pattern: &[char], text: &[char], pi: usize, ti: usize) -> bo
 
 /// Find first pattern match position
 fn find_pattern_match(text: &str, pattern: &str) -> Option<(usize, usize)> {
-    // Simple implementation - just look for literal matches for now
-    if let Some(pos) = text.find(pattern) {
-        Some((pos, pos + pattern.len()))
-    } else {
-        None
-    }
+    text.find(pattern).map(|pos| (pos, pos + pattern.len()))
 }
 
 /// Find all pattern match positions  
