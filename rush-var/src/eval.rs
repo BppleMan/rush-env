@@ -10,40 +10,49 @@ pub use evaluator::{evaluate_expr, expand_str};
 pub use glob::glob_match;
 use path::apply_path_modifier;
 
-/// Configuration options for expansion behavior
+/// 参数展开的配置选项（更语义化命名）
 #[derive(Debug, Clone)]
-pub struct Options {
-    pub mode: Mode,
-    pub allow_exec_subst: bool, // Allow $(command) execution
-    pub allow_flag_e: bool,     // Allow (e) flag for re-expansion
-    pub glob_impl: GlobKind,    // Glob matching implementation
+pub struct ExpansionOptions {
+    /// 目标 shell 兼容模式（影响语义差异）
+    pub mode: ShellMode,
+    /// 是否允许执行命令替换 $(command)
+    pub allow_exec_subst: bool,
+    /// 是否允许 (e) 标志进行二次展开
+    pub allow_flag_e: bool,
+    /// 通配符匹配的实现策略
+    pub glob_impl: GlobEngine,
 }
 
-/// Shell mode for compatibility
+/// Shell 兼容模式
 #[derive(Debug, Clone, PartialEq)]
-pub enum Mode {
+pub enum ShellMode {
     Zsh,
     Bash,
     Posix,
     Union, // Support all features
 }
 
-/// Glob matching implementation
+/// 通配符（glob）匹配实现
 #[derive(Debug, Clone, PartialEq)]
-pub enum GlobKind {
+pub enum GlobEngine {
     Simple, // Basic *, ?, [..] matching
 }
 
-impl Default for Options {
+impl Default for ExpansionOptions {
     fn default() -> Self {
         Self {
-            mode: Mode::Zsh,
+            mode: ShellMode::Zsh,
             allow_exec_subst: false,
             allow_flag_e: false,
-            glob_impl: GlobKind::Simple,
+            glob_impl: GlobEngine::Simple,
         }
     }
 }
+
+// 兼容旧名称别名：对外 API 与现有调用保持不变
+pub type Options = ExpansionOptions;
+pub type Mode = ShellMode;
+pub type GlobKind = GlobEngine;
 
 // expand_str & evaluate_expr 已迁移到 evaluator.rs 并在此重导出
 
@@ -140,13 +149,23 @@ fn calculate_slice_indices(start: i64, end: i64, len: usize) -> (usize, usize) {
 }
 
 /// Evaluate a list of words
+fn evaluate_words<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> {
+    ops::evaluate_words(words, env, opt)
+}
+
+// Backward-compatible wrapper used by existing internal tests and callers
 fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> {
-    ops::evaluate_word_list(words, env, opt)
+    evaluate_words(words, env, opt)
 }
 
 /// Apply a zsh flag to a value
+fn apply_zsh_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> {
+    flags::apply_zsh_flag(value, flag, env, opt)
+}
+
+// Backward-compatible wrapper to keep existing tests unchanged
 fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, Error> {
-    flags::apply_flag(value, flag, env, opt)
+    apply_zsh_flag(value, flag, env, opt)
 }
 
 /// Remove prefix matching pattern

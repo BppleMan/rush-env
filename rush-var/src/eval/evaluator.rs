@@ -1,4 +1,4 @@
-use super::Options;
+use super::ExpansionOptions as Options;
 use crate::ast::*;
 use crate::env::{EnvVars, Value};
 
@@ -91,7 +91,7 @@ pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Optio
 
         ParamExpr::Remove { inner, op, pattern } => {
             let value = evaluate_expr(inner, env, opt)?;
-            let pattern_str = super::evaluate_word_list(pattern, env, opt)?;
+            let pattern_str = super::evaluate_words(pattern, env, opt)?;
 
             match op {
                 RemoveOp::Prefix { long } => super::remove_prefix(&value, &pattern_str, *long),
@@ -101,8 +101,8 @@ pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Optio
 
         ParamExpr::Replace { inner, scope, pat, repl } => {
             let value = evaluate_expr(inner, env, opt)?;
-            let pattern_str = super::evaluate_word_list(pat, env, opt)?;
-            let replacement = super::evaluate_word_list(repl, env, opt)?;
+            let pattern_str = super::evaluate_words(pat, env, opt)?;
+            let replacement = super::evaluate_words(repl, env, opt)?;
 
             super::replace_pattern(&value, &pattern_str, &replacement, scope)
         }
@@ -140,7 +140,7 @@ pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Optio
                                 // Apply remaining flags to the joined result
                                 for flag in flags {
                                     if !matches!(flag.kind, ZFlag::J { .. }) {
-                                        result = super::apply_flag(&result, flag, env, opt)?;
+                                        result = super::apply_zsh_flag(&result, flag, env, opt)?;
                                     }
                                 }
                                 return Ok(result);
@@ -151,7 +151,7 @@ pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Optio
                                 // Apply remaining flags to the joined result
                                 for flag in flags {
                                     if !matches!(flag.kind, ZFlag::J { .. }) {
-                                        result = super::apply_flag(&result, flag, env, opt)?;
+                                        result = super::apply_zsh_flag(&result, flag, env, opt)?;
                                     }
                                 }
                                 return Ok(result);
@@ -165,7 +165,7 @@ pub fn evaluate_expr<E: EnvVars + ?Sized>(expr: &ParamExpr, env: &E, opt: &Optio
             // Normal flag processing
             let mut value = evaluate_expr(inner, env, opt)?;
             for flag in flags {
-                value = super::apply_flag(&value, flag, env, opt)?;
+                value = super::apply_zsh_flag(&value, flag, env, opt)?;
             }
             Ok(value)
         }

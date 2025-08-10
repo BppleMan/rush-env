@@ -1,9 +1,14 @@
-use super::Options;
+use super::ExpansionOptions as Options;
 use crate::ast::ZshFlag;
 use crate::env::EnvVars;
 
 /// 应用单个 zsh flag 到字符串值
-pub(crate) fn apply_flag<E: EnvVars + ?Sized>(value: &str, flag: &ZshFlag, env: &E, opt: &Options) -> Result<String, crate::ast::Error> {
+pub(crate) fn apply_zsh_flag<E: EnvVars + ?Sized>(
+    value: &str,
+    flag: &ZshFlag,
+    env: &E,
+    opt: &Options,
+) -> Result<String, crate::ast::Error> {
     use crate::ast::ZFlag;
 
     match &flag.kind {

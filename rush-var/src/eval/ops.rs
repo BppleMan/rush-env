@@ -1,4 +1,4 @@
-use super::Options;
+use super::ExpansionOptions as Options;
 use crate::ast::*;
 use crate::env::EnvVars;
 
@@ -101,6 +101,11 @@ pub(crate) fn evaluate_word_list<E: EnvVars + ?Sized>(words: &[Word], env: &E, o
         }
     }
     Ok(result)
+}
+
+// New clearer name; keep old function for backward compatibility
+pub(crate) fn evaluate_words<E: EnvVars + ?Sized>(words: &[Word], env: &E, opt: &Options) -> Result<String, Error> {
+    evaluate_word_list(words, env, opt)
 }
 
 pub(crate) fn remove_prefix(value: &str, pattern: &str, long: bool) -> Result<String, Error> {
