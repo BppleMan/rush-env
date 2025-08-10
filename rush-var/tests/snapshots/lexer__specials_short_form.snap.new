@@ -1,0 +1,15 @@
+---
+source: rush-var/tests/lexer.rs
+assertion_line: 50
+expression: body
+---
+input: args=$@ idx=$9 pid=$$
+Text         @0..5 "args="
+Dollar       @5..6
+SpecialParam @6..7 "@"
+Text         @7..12 " idx="
+Dollar       @12..13
+SpecialParam @13..14 "9"
+Text         @14..19 " pid="
+Dollar       @19..20
+SpecialParam @20..21 "$"

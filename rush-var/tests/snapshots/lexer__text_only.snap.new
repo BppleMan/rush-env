@@ -1,0 +1,7 @@
+---
+source: rush-var/tests/lexer.rs
+assertion_line: 14
+expression: body
+---
+input: hello world
+Text         @0..11 "hello world"

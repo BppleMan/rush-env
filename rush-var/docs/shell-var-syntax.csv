@@ -1,0 +1,47 @@
+#,ID,GROUP,SYNTAX,EXAMPLE_1,EXPECT_1,EXAMPLE_2,EXPECT_2,EXAMPLE_3,EXPECT_3,EXAMPLE_4,EXPECT_4,DESCRIPTION
+1,1,MUST,基本取值：${name} / $name,HOME=/Users/alice; print ${HOME}/projects,/Users/alice/projects,"FOO=bar; print ""X-$FOO-Y""",X-bar-Y,"name=world; print ""hello ${name}!""",hello world!,,,
+2,2,MUST,默认值：${name:-word} / ${name-word},unset FOO; print ${FOO:-def},def,"FOO=""""; print ${FOO-def}",<FILL_ME>,"FOO=""x""; print ${FOO:-def}",x,,,带冒号的判空（unset 或空）；不带冒号只判 unset
+3,3,MUST,赋默认并取值：${name:=word} / ${name=word} / ${name::=word},unset F; print ${F:=42}; print $F,42,,<FILL_ME>,"F=""""; print ${F=99}; print $F",99,X=0; print ${X::=7}; print $X,7.0,::= 在 zsh 中无条件赋值后取值
+4,4,MUST,报错：${name:?word} / ${name?word},"unset E; { print ${E:?missing} } 2>&1 | sed -n ""1p""",missing,"E=""""; { print ${E?oops} } 2>&1 | sed -n ""1p""",oops,E=ok; print ${E:?missing},ok,,,
+5,5,MUST,备选替换：${name:+word} / ${name+word},unset A; print X${A:+Y}Z,XZ,"A=""""; print X${A+Y}Z",XYZ,A=1; print X${A:+Y}Z,XYZ,,,
+6,6,MUST,长度：${#spec}（标量字符数 / 数组元素数）,FOO=abcdef; print ${#FOO},6,arr=(a bb ccc); print ${#arr},3,arr=(a bb ccc); print ${(c)#arr},6,,,(c) 与 ${#name} 连用：按元素用空格连接后统计字符数
+7,7,MUST,前缀删除：${name#pat} / ${name##pat},"S=""abc_abcd""; print ${S#a*c_}",abcd,"S=""abc_abcd""; print ${S##a*c_}",<FILL_ME>,"S=""foo.c""; print ${S##*.}",c,,,
+8,8,MUST,后缀删除：${name%pat} / ${name%%pat},"S=""foo.c.bak""; print ${S%.*}",foo.c,"S=""foo.c.bak""; print ${S%%.*}",foo,"S=""path/to/dir/""; print ${S%/}",path/to/dir,,,
+9,9,MUST,替换：${name/pat/repl}（首个） / ${name//pat/repl}（全局）,"S=""aba""; print ${S/a/X}",Xba,"S=""aba""; print ${S//a/X}",XbX,"S=""file.c""; print ${S/%.c/.o}",file.o,,,
+10,10,MUST,替换：:s/l/r/（首个） / :gs/l/r/（全局） / :&（重复上次）,"S=""foo foo""; print ${S:s/foo/bar/}",bar foo,"S=""foo foo""; print ${S:gs/o/0/}",f00 f00,"S=""a b""; print ${S:s/b/x/:&}",a x,,,
+11,11,MUST,锚定替换：${name/#pat/repl} / ${name/%pat/repl},"S=""abcabc""; print ${S/#ab/XX}",XXcabc,"S=""abcabc""; print ${S/%abc/XX}",abcXX,"S=""xabc""; print ${S/#abc/YY}",xabc,,,
+12,12,MUST,Bash 兼容切片：${name:offset} / ${name:offset:length},"S=""abcdef""; print ${S:2}",cdef,"S=""abcdef""; print ${S:2:3}",cde,arr=(a b c d e); print -l ${arr:1:3},b⏎c⏎d,,,
+13,13,MUST,"zsh 下标：$name[n] / $name[n,m]（对标量为子串）","S=""abcdef""; print $S[2,5]",bcde,arr=(a b c d); print $arr[2],b,"arr=(a b c d); print -l $arr[2,3]",b⏎c,,,
+14,14,MUST,下标 flags：[(w)] 按词 / [(s:sep:)] 自定义分隔,"S=""a b  c""; print ${S[(w)2]}",b,"S=""x|y|z""; print ${S[(s:|:)3]}",z,"S=""a-b-c-d""; print ${S[(s:-:)2,3]}",b c,,,
+15,15,MUST,下标检索：[(i)pat] 第一次匹配下标 / [(I)pat] 最后一次,arr=(alpha beta beta gamma); print ${arr[(i)beta]},2,arr=(alpha beta beta gamma); print ${arr[(I)beta]},3,"S=""a_b_c_b""; print ${S[(i)b]}",3,,,
+16,16,MUST,路径：:h（目录） / :t（文件名） / :r（去扩展） / :e（取扩展）,"P=""/tmp/a.tar.gz""; print ${P:h}",/tmp,"P=""/tmp/a.tar.gz""; print ${P:t}",a.tar.gz,"P=""/tmp/a.tar.gz""; print ${P:r:e}",tar,,,
+17,17,MUST,大小写：:l（lower） / :u（upper）,"S=""AbC""; print ${S:l}",abc,"S=""zsh rocks""; print ${S:u}",ZSH ROCKS,"S=""Mix""; print ${S:l:u}",MIX,,,
+18,18,MUST,分割 / 连接：${(s:sep:)name} 与 ${(j:sep:)name},"S=""a,b,c""; print -l ${(s:,:)S}",a⏎b⏎c,"arr=(a b c); print ${(j:,: )arr}","a, b, c","S=""x|y|z""; print ${(j:-:)${(s:|:)S}}",x-y-z,,,
+19,19,MUST,按行分割 / 按行连接：${(f)name} / ${(F)name},"S=""a⏎b⏎c""; print -l ${(f)S}",a⏎b⏎c,arr=(a b c); print ${(F)arr},a⏎b⏎c,,<FILL_ME>,,,
+20,20,MUST,省略 name 的默认：${:-word},print ${:-hello},hello,"print ""pre${:-/tmp}/suf""",pre/tmp/suf,,<FILL_ME>,,,
+21,21,LATER,目录名替换：${(D)name}（把 $HOME 等替换为 ~ 并转义）,"P=""$HOME/tmp/with space.txt""; print ${(D)P}",~/tmp/with\ space.txt,"arr=(""$HOME/a"" ""$HOME/b""); print ${(D)arr}",~/a ~/b,,,,,
+22,22,LATER,非贪婪 / 第 N 次匹配：$(S) / $(I:n:) 与删除/替换配合,"S=""abab""; print ${(S)S/*b/_}",_ab,"S=""a_b_c_b""; print ${(I:2:)S//b/B}",a_B_c_B,"S=""axxxbxxx""; print ${(S)S#x*}",ab,,,(S) 取最短；(I:n:) 从第 n 次开始或仅第 n 次
+23,23,LATER,下标取匹配值：[(r)pat] / [(R)pat],arr=(foo bar baz); print ${arr[(r)b*]},bar,"S=""abcbc""; print ${S[(r)bc]}",bc,arr=(aa bb aa); print ${arr[(R)aa]},aa,,,(R) 与 (r) 在数组上均可用于匹配值；细节参见手册
+24,24,LATER,大小写：${(L)name} / ${(U)name} / ${(C)name},"S=""Abc def""; print ${(L)S}",abc def,"S=""abc def""; print ${(U)S}",ABC DEF,"S=""this is zsh""; print ${(C)S}",This Is Zsh,,,
+25,25,LATER,强制分词：${=spec}（按 $IFS 分割；== 关闭）,"IFS=,:; F=""a,b:c""; print -l ${=F}",a⏎b⏎c,"IFS=,; F=""a b,c""; print -l ""${=F}""",a b⏎c,"F=""a b""; print -l ${==F}",a b,,,仅影响当前展开的分词；== 关闭
+26,26,LATER,去重 / 排序：${(u)name} / ${(o)name} / ${(O)name},arr=(b a a c); print ${(u)arr},b a c,arr=(b a c); print ${(o)arr},a b c,arr=(b a c); print ${(O)arr},c b a,,,
+27,27,LATER,键/值：${(k)assoc} / ${(v)assoc}（关联数组）,typeset -A m=([x]=1 [y]=2); print ${(k)m},x y,typeset -A m=([x]=1 [y]=2); print ${(v)m},1 2,typeset -A m=([a]=A [b]=B); print ${(kvo)m},a A b B,,,(kvo) 示例：输出键和值并排序
+28,28,LATER,间接引用：${(P)name},target=FOO; FOO=42; print ${(P)target},42,"idx=2; arr=(a b c); ref=""arr[$idx]""; print ${(P)ref}",b,"ref=""HOME""; print ${(P)ref}",,,,
+29,29,LATER,左/右填充：${(l:width::pad:)name} / ${(r:width::pad:)name},"S=""42""; print ""[${(l:5::0:)S}]""",[00042],"S=""hi""; print ""[${(r:5::.:)S}]""",[hi...],arr=(a bb); print -l ${(l:3:: :)arr},a  ⏎bb ,,,对数组逐元素填充
+30,30,LATER,匹配即清空 / 过滤数组：${name:#pat}（(M) 取反）,"S=""main.c""; print ${S:#*.c}",,"arr=(a.c b.h c.c); print -l ${arr:#*.h} | sed -e ""s/$/./""",a.⏎c.,"arr=(a.c b.h c.c); print -l ${(M)arr:#*.h} | sed -e ""s/$/./""",b.,,,数组：默认删除匹配元素；(M) 改为保留匹配元素
+31,31,LATER,可见化：${(V)name}（显示不可见字符为转义）,S=$'a\tb\n'; print ${(V)S},a\tb\n,S=$'\x01'; print ${(V)S},\x01,S=$'\xE2\x98\x83'; print ${(V)S} | sed -e 's/.*/LEN=&/',LEN=\u2603,,,
+32,32,LATER,字符码：${(#)expr}（数字→字符；多字节支持）,N=65; print ${(#)N},A,N=9731; print ${(#)N},☃,,,,,
+33,33,LATER,存在性测试：${+name},unset FOO; print ${+FOO},0,BAR=1; print ${+BAR},1,typeset -A m; print ${+m},1,,,
+34,34,LATER,带数字的 :hN / :tN,"P=""/a/b/c/d""; print ${P:h3}",/a/b,"P=""/a/b/c/d""; print ${P:t2}",c/d,"P=""/a""; print ${P:h5}",/,,,
+35,35,LATER,引用：${(q)name} / ${(Q)name} / ${(qq)name},S='a b*'; print ${(q)S},a\ b\*,"T=""\n""; print ${(q)T}",\\n,"X='""y""'; print ${(Q)${(q)X}}","""y""",,,(q) 加引号/转义；(Q) 去一层引号/转义；(qq) 更强转义
+36,36,LATER,引用：:q（加引号） / :Q（去引号）,S='a b'; print ${S:q},a\ b,"T='""x""'; print ${T:q:Q}","""x""",,,,,
+37,37,LATER,把结果当作模式：${~spec}（GLOB_SUBST）,"F=""*.c""; ls ${~F} 2>/dev/null | head -n1 | sed -e ""s!.*/!!""",,"p=""a*c""; print ${~p//\*/X}",aXc,"p=""*.txt""; print ${${~p}//\*/X}",X,,,第二个示例演示在更外层替换后仍保留字面量；第一个示例输出依赖当前目录
+38,38,LATER,提示符转义：${(%)name}（%→提示符转义；%% 完全）,"S=""100%%""; print ${(%)S}",100%,"S=""%%""; print ${(%)S}",%,,,,,
+39,39,LATER,数组差集/交集：${name:|arr2} / ${name:*arr2},A=(a b c d); B=(b d x); print -l ${A:|B},a⏎c,A=(a b c d); B=(b d x); print -l ${A:*B},b⏎d,,,,,:| 删除出现在 arr2 的元素；:* 仅保留交集
+40,40,LATER,数组拉链：${name:^arr2} / :^^（重复对齐）,A=(1 2 3 4); B=(a b); print -l ${A:^B},1 a⏎2 b,A=(1 2 3 4); B=(a b); print -l ${A:^^B},1 a⏎2 b⏎3 a⏎4 b,,,,,
+41,41,LATER,组合展开控制：${^spec}（RC_EXPAND_PARAM）,arr=(x y); print pre${^arr}post,prexpost preypost,arr=(); print a${^arr}b,ab,"arr=(a b c); print -l ${^arr} | sed -e ""s/$/./""",a.⏎b.⏎c.,,,把数组与左右文本逐元素组合；空数组移除该片段
+42,42,LATER,转义序列：${(g:opts:)name}（处理 \n、^X、八进制等）,value='Name\tAge\nA^I42'; print ${(g:oc:)value},Name	Age⏎A	42,value='\141\142'; print ${(g::)value},ab,,,,,
+43,43,REFERENCE,命令解析为绝对路径：:c,"P=""zsh""; print ${P:c} | sed -e ""s!.*/!!""",zsh,"P=""/bin/ls""; print ${P:c} | sed -e ""s!.*/!!""",ls,,,,,:c 查 PATH；若不存在则原样返回
+44,44,REFERENCE,路径绝对化/真实路径：:a / :A / :P,"P="".""; print ${P:a} | sed -e ""s!.*/!!""",,"P=""$HOME/..""; print ${P:A} | sed -e ""s!.*/!!""",,"P="".""; print ${P:P} | sed -e ""s!.*/!!""",,,,输出依赖实际文件系统；:A 解析符号链接；:P 使用 realpath 语义
+45,45,REFERENCE,词法分割：${(z)name} / ${(Z+n+)name},"S='a ""b c"" d'; print -l ${(z)S}",a⏎b c⏎d,"S=""a\nb c""; print -l ${(Z+n+)S}",a⏎b⏎c,,,,,(Z+n+) 将换行当作空白；(z) 按 shell 词法分割
+46,46,REFERENCE,再次展开：${(e)name}（对结果再做参数/命令/算术展开）,"S=""FOO=ok; echo $FOO""; print ${(e)S}",ok,"X=""1+2""; print $(( ${(e)X} ))",3,"cmd=""echo hi""; print ${(e)$(print $cmd)}",hi,,,

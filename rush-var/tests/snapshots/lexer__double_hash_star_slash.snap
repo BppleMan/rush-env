@@ -1,0 +1,12 @@
+---
+source: rush-var/tests/lexer.rs
+expression: body
+---
+input: ${v##*/}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..3 "v"
+DoubleHash   @3..5
+Pattern      @5..6 "*"
+Slash        @6..7
+RBrace       @7..8

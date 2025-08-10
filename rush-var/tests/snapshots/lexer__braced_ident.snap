@@ -1,0 +1,11 @@
+---
+source: rush-var/tests/lexer.rs
+expression: body
+---
+input: Path: ${HOME}/bin
+Text         @0..6 "Path: "
+Dollar       @6..7
+LBrace       @7..8
+Ident        @8..12 "HOME"
+RBrace       @12..13
+Text         @13..17 "/bin"

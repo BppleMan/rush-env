@@ -1,0 +1,42 @@
+---
+source: rush-var/tests/lexer_sub.rs
+assertion_line: 32
+expression: dump
+---
+input: ${a:1,2}${b:-x}${c:+y}${d:?e}${e:=z}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..3 "a"
+Colon        @3..4
+SignedInt    @4..5 "1"
+Comma        @5..6
+SignedInt    @6..7 "2"
+RBrace       @7..8
+Dollar       @8..9
+LBrace       @9..10
+Ident        @10..11 "b"
+Colon        @11..12
+Minus        @12..13
+Ident        @13..14 "x"
+RBrace       @14..15
+Dollar       @15..16
+LBrace       @16..17
+Ident        @17..18 "c"
+Colon        @18..19
+Plus         @19..20
+Ident        @20..21 "y"
+RBrace       @21..22
+Dollar       @22..23
+LBrace       @23..24
+Ident        @24..25 "d"
+Colon        @25..26
+Question     @26..27
+Ident        @27..28 "e"
+RBrace       @28..29
+Dollar       @29..30
+LBrace       @30..31
+Ident        @31..32 "e"
+Colon        @32..33
+Equals       @33..34
+Ident        @34..35 "z"
+RBrace       @35..36

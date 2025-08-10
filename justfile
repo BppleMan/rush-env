@@ -29,3 +29,47 @@ starship:
 
 ohmyzsh:
     curl -o ./repository/ohmyzsh.zip https://codeload.github.com/ohmyzsh/ohmyzsh/zip/refs/heads/master
+
+insta:
+    # 1) 生成/审阅快照（避免测试抖动影响覆盖率）
+    -cargo insta test -p rush-var --all-features
+    # 2) 审阅快照
+    cargo insta review
+
+llvm-cov-prepare:
+    #!/usr/bin/env zsh
+    # 1) 安装 Xcode 命令行工具
+    xcode-select --install
+
+    # 2) 安装 llvm-tools-preview 和 cargo-llvm-cov
+    rustup component add llvm-tools-preview
+    cargo install cargo-llvm-cov
+
+    # 3) 让 cargo-llvm-cov 用 Xcode 的 llvm
+    export LLVM_COV="$(xcrun -f llvm-cov)"
+    export LLVM_PROFDATA="$(xcrun -f llvm-profdata)"
+
+    # 可选：看看路径是否正确
+    echo $LLVM_COV
+    echo $LLVM_PROFDATA
+    "$LLVM_COV" --version
+    "$LLVM_PROFDATA" --version
+
+    # 3) 先清干净
+    cargo llvm-cov clean --workspace
+
+llvm-cov-rush-var:
+    # 1) 生成/审阅快照（避免测试抖动影响覆盖率）
+    cargo insta review
+
+    # 2) 跑覆盖率（终端摘要）
+    cargo llvm-cov -p rush-var \
+      --ignore-filename-regex '/(tests|examples|benches)/'
+
+llvm-cov-rush-var-html:
+    cargo llvm-cov -p rush-var --html --open \
+      --ignore-filename-regex '/(tests|examples|benches)/'
+    cargo llvm-cov -p rush-var --json \
+        --output-path target/llvm-cov \
+        --ignore-filename-regex '/(tests|examples|benches)/' \
+        --no-run

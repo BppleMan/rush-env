@@ -1,0 +1,15 @@
+---
+source: rush-var/tests/lexer_sub.rs
+assertion_line: 19
+expression: dump
+---
+input: a=$@ b=$9 c=$$
+Text         @0..2 "a="
+Dollar       @2..3
+SpecialParam @3..4 "@"
+Text         @4..7 " b="
+Dollar       @7..8
+SpecialParam @8..9 "9"
+Text         @9..12 " c="
+Dollar       @12..13
+SpecialParam @13..14 "$"

@@ -1,0 +1,12 @@
+---
+source: rush-var/tests/lexer.rs
+assertion_line: 37
+expression: body
+---
+input: ${v:2}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..3 "v"
+Colon        @3..4
+SignedInt    @4..5 "2"
+RBrace       @5..6

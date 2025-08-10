@@ -1,0 +1,12 @@
+---
+source: rush-var/tests/lexer.rs
+expression: body
+---
+input: ${name:?ERR}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..6 "name"
+Colon        @6..7
+Question     @7..8
+Ident        @8..11 "ERR"
+RBrace       @11..12

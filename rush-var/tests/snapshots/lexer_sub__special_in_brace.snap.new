@@ -1,0 +1,22 @@
+---
+source: rush-var/tests/lexer_sub.rs
+assertion_line: 20
+expression: dump
+---
+input: ${*}${9}${$}${_}
+Dollar       @0..1
+LBrace       @1..2
+SpecialParam @2..3 "*"
+RBrace       @3..4
+Dollar       @4..5
+LBrace       @5..6
+SignedInt    @6..7 "9"
+RBrace       @7..8
+Dollar       @8..9
+LBrace       @9..10
+SpecialParam @10..11 "$"
+RBrace       @11..12
+Dollar       @12..13
+LBrace       @13..14
+SpecialParam @14..15 "_"
+RBrace       @15..16

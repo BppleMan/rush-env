@@ -1,0 +1,14 @@
+---
+source: rush-var/tests/lexer_sub.rs
+assertion_line: 27
+expression: dump
+---
+input: ${v//a/b}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..3 "v"
+DoubleSlash  @3..5
+Ident        @5..6 "a"
+Slash        @6..7
+Ident        @7..8 "b"
+RBrace       @8..9

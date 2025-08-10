@@ -1,0 +1,10 @@
+---
+source: rush-var/tests/lexer.rs
+assertion_line: 15
+expression: body
+---
+input: Hello $USER!
+Text         @0..6 "Hello "
+Dollar       @6..7
+Ident        @7..11 "USER"
+Text         @11..12 "!"

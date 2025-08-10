@@ -1,0 +1,12 @@
+---
+source: rush-var/tests/lexer.rs
+expression: body
+---
+input: ${name:+X}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..6 "name"
+Colon        @6..7
+Plus         @7..8
+Ident        @8..9 "X"
+RBrace       @9..10

@@ -1,0 +1,11 @@
+---
+source: rush-var/tests/lexer.rs
+assertion_line: 60
+expression: body
+---
+input: ${HOME/path
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..6 "HOME"
+Slash        @6..7
+Ident        @7..11 "path"

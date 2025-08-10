@@ -1,0 +1,10 @@
+---
+source: rush-var/tests/lexer.rs
+expression: body
+---
+input: ${#HOME}
+Dollar       @0..1
+LBrace       @1..2
+Hash         @2..3
+Ident        @3..7 "HOME"
+RBrace       @7..8

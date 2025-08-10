@@ -1,0 +1,9 @@
+---
+source: rush-var/tests/lexer_sub.rs
+assertion_line: 14
+expression: dump
+---
+input: ${foo
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..5 "foo"

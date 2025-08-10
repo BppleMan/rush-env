@@ -1,0 +1,18 @@
+---
+source: rush-var/tests/lexer.rs
+assertion_line: 45
+expression: body
+---
+input: ${v:0:${#v}}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..3 "v"
+Colon        @3..4
+SignedInt    @4..5 "0"
+Colon        @5..6
+SpecialParam @6..7 "$"
+Text         @7..8 "{"
+Hash         @8..9
+Pattern      @9..10 "v"
+RBrace       @10..11
+Text         @11..12 "}"

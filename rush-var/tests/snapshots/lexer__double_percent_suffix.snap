@@ -1,0 +1,11 @@
+---
+source: rush-var/tests/lexer.rs
+expression: body
+---
+input: ${file%%.bak}
+Dollar       @0..1
+LBrace       @1..2
+Ident        @2..6 "file"
+DoublePercent @6..8
+Pattern      @8..12 ".bak"
+RBrace       @12..13

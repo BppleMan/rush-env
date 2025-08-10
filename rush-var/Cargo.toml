@@ -7,4 +7,5 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[dependencies]
+[dev-dependencies]
+insta = "1.43.1"
