@@ -3,7 +3,6 @@ resolver = "3"
 members = ["rush-env", "rush-say", "rush-var"]
 
 [workspace.package]
-name = "rush-env"
 version = "0.1.1"
 edition = "2024"
 description = "A modern, configuration-driven Zsh environment generator"

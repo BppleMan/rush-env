@@ -1,5 +1,5 @@
 use crate::style::{BorderStyle, CommentStyle};
-use crate::widget::{Align, Constraints, Container, Size, Text, Widget};
+use crate::widget::{Align, Constraints, Container, Text, Widget};
 use std::io::Write;
 
 #[derive(Default, Debug, Clone)]
@@ -101,6 +101,11 @@ impl Bubble {
     pub fn set_text_align(mut self, align: Align) -> Self {
         self.inner.inner = self.inner.inner.set_align(align);
         self
+    }
+
+    pub fn random_style(self, random: usize) -> Self {
+        self.set_border(BorderStyle::random(random))
+            .set_comment(CommentStyle::random(random))
     }
 }
 
