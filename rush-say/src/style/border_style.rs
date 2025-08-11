@@ -1,3 +1,7 @@
+use clap::ValueEnum;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+
 #[derive(Debug, Clone)]
 pub struct BorderStyle {
     pub top_left: char,
@@ -218,5 +222,14 @@ impl BorderStyle {
             vertical: '|',
             size: 1,
         }
+    }
+}
+
+impl Display for BorderStyle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}{}{}", self.top_left, self.horizontal, self.top_right)?;
+        writeln!(f, "{} {}", self.vertical, self.vertical)?;
+        writeln!(f, "{}{}{}", self.bottom_left, self.horizontal, self.bottom_right)?;
+        Ok(())
     }
 }
