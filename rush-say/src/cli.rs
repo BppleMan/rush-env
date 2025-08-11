@@ -86,87 +86,62 @@ pub mod border {
 
 pub mod comment {
     use clap::ValueEnum;
+    use rush_say::CommentStyle;
     use std::fmt::{Display, Formatter};
     use std::str::FromStr;
 
-    #[derive(Default, Debug, Clone, Copy, ValueEnum)]
-    pub enum CommentType {
-        #[default]
-        Rust,
-        RustDoc,
-        Java,
-        Shell,
-        VimRc,
-        Lua,
-        SQL,
-        Xml,
-        JavaDoc,
-        CBlock,
-        LuaBlock,
-        PythonTripleSingle,
-        PythonTripleDouble,
+    macro_rules! comment_type {
+        ($($name:ident, $prefix:expr, $suffix:expr, $open:expr, $close:expr, $con:expr);+ $(;)?) => {
+            #[allow(non_camel_case_types)]
+            #[derive(Debug, Clone, Copy, ValueEnum)]
+            pub enum CommentType {
+                $(
+                    $name,
+                )+
+            }
+
+            impl CommentType {
+                pub fn build(&self) -> CommentStyle {
+                    match self {
+                        $(Self::$name => CommentStyle::$name()),+
+                    }
+                }
+            }
+
+            impl Display for CommentType {
+                fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        $(Self::$name => write!(f, "{}", $con),)+
+                    }
+                }
+            }
+
+            impl FromStr for CommentType {
+                type Err = String;
+
+                fn from_str(s: &str) -> Result<Self, Self::Err> {
+                    match s {
+                        $($con => Ok(Self::$name),)+
+                        _ => Err(format!("Unknown comment type {s}")),
+                    }
+                }
+            }
+        };
     }
 
-    impl Display for CommentType {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            match self {
-                CommentType::Rust => write!(f, "rust"),
-                CommentType::RustDoc => write!(f, "rust_doc"),
-                CommentType::Java => write!(f, "java"),
-                CommentType::Shell => write!(f, "shell"),
-                CommentType::VimRc => write!(f, "vimrc"),
-                CommentType::Lua => write!(f, "lua"),
-                CommentType::SQL => write!(f, "sql"),
-                CommentType::Xml => write!(f, "xml"),
-                CommentType::JavaDoc => write!(f, "java_doc"),
-                CommentType::CBlock => write!(f, "c_block"),
-                CommentType::LuaBlock => write!(f, "lua_block"),
-                CommentType::PythonTripleSingle => write!(f, "python_triple_single"),
-                CommentType::PythonTripleDouble => write!(f, "python_triple_double"),
-            }
-        }
-    }
-
-    impl FromStr for CommentType {
-        type Err = String;
-
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
-            match s.to_lowercase().as_str() {
-                "rust" => Ok(CommentType::Rust),
-                "rust_doc" => Ok(CommentType::RustDoc),
-                "java" => Ok(CommentType::Java),
-                "shell" => Ok(CommentType::Shell),
-                "vimrc" => Ok(CommentType::VimRc),
-                "lua" => Ok(CommentType::Lua),
-                "sql" => Ok(CommentType::SQL),
-                "xml" => Ok(CommentType::Xml),
-                "java_doc" => Ok(CommentType::JavaDoc),
-                "c_block" => Ok(CommentType::CBlock),
-                "lua_block" => Ok(CommentType::LuaBlock),
-                "python_triple_single" => Ok(CommentType::PythonTripleSingle),
-                "python_triple_double" => Ok(CommentType::PythonTripleDouble),
-                _ => Err(format!("Unknown comment type {s}")),
-            }
-        }
-    }
-
-    impl CommentType {
-        pub fn build(&self) -> rush_say::CommentStyle {
-            match self {
-                CommentType::Rust => rush_say::CommentStyle::rust(),
-                CommentType::RustDoc => rush_say::CommentStyle::rust_doc(),
-                CommentType::Java => rush_say::CommentStyle::java(),
-                CommentType::Shell => rush_say::CommentStyle::shell(),
-                CommentType::VimRc => rush_say::CommentStyle::vimrc(),
-                CommentType::Lua => rush_say::CommentStyle::lua(),
-                CommentType::SQL => rush_say::CommentStyle::sql(),
-                CommentType::Xml => rush_say::CommentStyle::xml(),
-                CommentType::JavaDoc => rush_say::CommentStyle::java_doc(),
-                CommentType::CBlock => rush_say::CommentStyle::c_block(),
-                CommentType::LuaBlock => rush_say::CommentStyle::lua_block(),
-                CommentType::PythonTripleSingle => rush_say::CommentStyle::python_triple_single(),
-                CommentType::PythonTripleDouble => rush_say::CommentStyle::python_triple_double(),
-            }
-        }
+    comment_type! {
+        rust, "//", None, None, None, "rust";
+        rust_doc, "///", None, None, None, "rust_doc";
+        java, "//", None, None, None, "java";
+        shell, "#", None, None, None, "shell";
+        vimrc, "\"", None, None, None, "vimrc";
+        lua, "--", None, None, None, "lua";
+        sql, "--", None, None, None, "sql";
+        xml, "<!--", Some("-->"), None, None, "xml";
+        java_doc, " * ", None, Some("/**"), Some(" */"), "java_doc";
+        c_block, "", None, Some("/*"), Some("*/"), "c_block";
+        lua_block, "", None, Some("--[["), Some("]]"), "lua_block";
+        python_triple_single, "", None, Some("'''"), Some("'''"), "python_triple_single";
+        python_triple_double, "", None, Some("\"\"\""), Some("\"\"\""), "python_triple_double";
     }
 }
