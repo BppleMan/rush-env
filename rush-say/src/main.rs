@@ -5,7 +5,6 @@ use crate::cli::comment::CommentType;
 use clap::Parser;
 use rush_say::{Bubble, SimpleRng};
 use std::io::{self, Read};
-use std::iter;
 
 /// 终端气泡注释输出工具，支持自动换行、视觉居中、中文emoji宽度处理。
 #[derive(Parser, Debug)]
