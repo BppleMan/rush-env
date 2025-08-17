@@ -109,6 +109,7 @@ where
             self.inner.render(writer, row - self.border.size)?;
             write!(writer, "{}{}", " ".repeat(right), self.border.vertical)?;
         }
-        write!(writer, "{}", " ".repeat(self.margin))
+        write!(writer, "{}", " ".repeat(self.margin))?;
+        Ok(())
     }
 }

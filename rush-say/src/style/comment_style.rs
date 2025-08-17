@@ -57,8 +57,10 @@ macro_rules! comment_factory {
             java_doc, "java_doc", " * ", None, Some("/**"), Some(" */");
             c_block, "c_block", "", None, Some("/*"), Some("*/");
             lua_block, "lua_block", "", None, Some("--[["), Some("]]");
+            echo, "echo", "echo \"", Some("\""), None, None;
             python_triple_single, "python_triple_single", "", None, Some("'''"), Some("'''");
             python_triple_double, "python_triple_double", "", None, Some("\"\"\""), Some("\"\"\"");
+            rust_info, "rust_info", "info!(\"", Some("\");"), None, None;
         }
     };
 }

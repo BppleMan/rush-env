@@ -3,12 +3,12 @@ mod cli;
 use crate::cli::border::BorderType;
 use crate::cli::comment::CommentType;
 use clap::Parser;
-use rush_say::{Bubble, SimpleRng};
+use rush_say::{Align, Bubble, SimpleRng};
 use std::io::{self, Read};
 
 /// 终端气泡注释输出工具，支持自动换行、视觉居中、中文emoji宽度处理。
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about)]
 struct Cli {
     /// 输出一个示例注释框
     #[arg(long, value_name = "EXAMPLE", default_value_t = false)]
@@ -29,6 +29,12 @@ struct Cli {
     /// 指定内容与边框的padding
     #[arg(short, long, value_name = "PADDING", default_value_t = 2)]
     padding: usize,
+
+    #[arg(short, long, value_enum, default_value_t = Align::Center)]
+    align: Align,
+
+    #[arg(short, long, value_enum, default_value_t = Align::Center)]
+    text_align: Align,
 
     /// 指定边框样式
     #[arg(short, long, value_name = "BORDER", value_enum, default_value_t = BorderType::rounded)]
@@ -55,9 +61,16 @@ fn main() -> color_eyre::Result<()> {
         } else {
             let mut content = String::new();
             io::stdin().read_to_string(&mut content)?;
+            content = content.strip_suffix('\n').unwrap_or(&content).to_string();
             Bubble::new(content)
         };
-        let mut bubble = bubble.set_width(cli.width).set_padding(cli.padding).set_border(cli.border.build());
+        let mut bubble = bubble
+            .set_width(cli.width)
+            .set_margin(cli.margin)
+            .set_padding(cli.padding)
+            .set_border(cli.border.build())
+            .set_align(cli.align)
+            .set_text_align(cli.text_align);
         if let Some(comment_type) = cli.comment {
             bubble = bubble.set_comment(comment_type.build());
         }

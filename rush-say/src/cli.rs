@@ -4,61 +4,61 @@ pub mod border {
     use std::fmt::{Display, Formatter};
     use std::str::FromStr;
 
-    macro_rules! border_type {
-        ($($name:ident, $con:expr $(,$ignore:expr)+);+ $(;)?) => {
-            $($name,)+
-        };
-    }
     // macro_rules! border_type {
     //     ($($name:ident, $con:expr $(,$ignore:expr)+);+ $(;)?) => {
-    //         #[allow(non_camel_case_types)]
-    //         #[derive(Debug, Clone, Copy, ValueEnum)]
-    //         pub enum BorderType {
-    //             $($name,)+
-    //         }
-    //
-    //         impl BorderType {
-    //             pub fn build(&self) -> BorderStyle {
-    //                 match self {
-    //                     $(Self::$name => BorderStyle::$name()),+
-    //                 }
-    //             }
-    //         }
-    //
-    //         impl Display for BorderType {
-    //             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    //                 match self {
-    //                     $(Self::$name => write!(f, "{}", $con),)+
-    //                 }
-    //             }
-    //         }
-    //
-    //         impl FromStr for BorderType {
-    //             type Err = String;
-    //
-    //             fn from_str(s: &str) -> Result<Self, Self::Err> {
-    //                 match s {
-    //                     $($con => Ok(Self::$name),)+
-    //                     _ => Err(format!("Unknown border type {s}")),
-    //                 }
-    //             }
-    //         }
+    //         $($name,)+
     //     };
     // }
-    //
-    // border_factory!(border_type);
-    #[allow(non_camel_case_types)]
-    #[derive(Debug, Clone, Copy, ValueEnum)]
-    pub enum BorderType {
-        border_factory!(border_type);
+    macro_rules! border_type {
+        ($($name:ident, $con:expr $(,$ignore:expr)+);+ $(;)?) => {
+            #[allow(non_camel_case_types)]
+            #[derive(Debug, Clone, Copy, ValueEnum)]
+            pub enum BorderType {
+                $($name,)+
+            }
+
+            impl BorderType {
+                pub fn build(&self) -> BorderStyle {
+                    match self {
+                        $(Self::$name => BorderStyle::$name()),+
+                    }
+                }
+            }
+
+            impl Display for BorderType {
+                fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        $(Self::$name => write!(f, "{}", $con),)+
+                    }
+                }
+            }
+
+            impl FromStr for BorderType {
+                type Err = String;
+
+                fn from_str(s: &str) -> Result<Self, Self::Err> {
+                    match s {
+                        $($con => Ok(Self::$name),)+
+                        _ => Err(format!("Unknown border type {s}")),
+                    }
+                }
+            }
+        };
     }
 
-    #[allow(clippy::derivable_impls)]
-    impl Default for BorderType {
-        fn default() -> Self {
-            BorderType::simple
-        }
-    }
+    border_factory!(border_type);
+    // #[allow(non_camel_case_types)]
+    // #[derive(Debug, Clone, Copy, ValueEnum)]
+    // pub enum BorderType {
+    //     border_factory!(border_type);
+    // }
+    //
+    // #[allow(clippy::derivable_impls)]
+    // impl Default for BorderType {
+    //     fn default() -> Self {
+    //         BorderType::simple
+    //     }
+    // }
 }
 
 pub mod comment {

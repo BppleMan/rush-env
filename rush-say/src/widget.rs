@@ -1,6 +1,7 @@
 mod text;
 mod container;
 
+use clap::ValueEnum;
 pub use container::Container;
 pub use text::Text;
 
@@ -23,7 +24,7 @@ pub struct Size {
     pub height: usize,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, ValueEnum)]
 pub enum Align {
     #[default]
     Center,
