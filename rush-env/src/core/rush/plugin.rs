@@ -1,3 +1,4 @@
+use crate::core::installer::Install;
 use crate::core::rush::condition::Condition;
 use crate::core::rush::script::Scripts;
 use crate::core::rush::script::export::ExportScript;
