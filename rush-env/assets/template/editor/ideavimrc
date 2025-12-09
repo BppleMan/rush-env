@@ -1,0 +1,56 @@
+source ~/.vimrc
+
+"====================================================
+"=                    常规配置                       =
+"====================================================
+map <leader>r <Action>(Run)
+map <leader>d <Action>(Debug)
+map <leader>b <Action>(Build)
+map <C-c> :noh<CR>
+map  / <Action>(Find)
+set visualbell
+set noerrorbells
+nmap <C-n> <Plug>NextWholeOccurrence
+xmap <C-n> <Plug>NextWholeOccurrence
+nmap g<C-n> <Plug>NextOccurrence
+xmap g<C-n> <Plug>NextOccurrence
+nmap <C-x> <Plug>SkipOccurrence
+xmap <C-x> <Plug>SkipOccurrence
+nmap <C-p> <Plug>RemoveOccurrence
+xmap <C-p> <Plug>RemoveOccurrence
+set multiple-cursors
+
+"====================================================
+"=                    EasyMotion                    =
+"====================================================
+" Disable default mappings
+let g:EasyMotion_do_mapping = 0
+" Turn on case-insensitive feature
+let g:EasyMotion_smartcase = 1
+nmap f <Plug>(easymotion-f)
+vmap f <Plug>(easymotion-f)
+nmap F <Plug>(easymotion-F)
+vmap F <Plug>(easymotion-F)
+nmap gl <Plug>(easymotion-bd-jk)
+vmap gl <Plug>(easymotion-bd-jk)
+map <Leader>j <Plug>(easymotion-j)
+map <Leader>k <Plug>(easymotion-k)
+
+" These `n` & `N` mappings are options. You do not have to map `n` & `N` to EasyMotion.
+" Without these mappings, `n` & `N` works fine. (These mappings just provide
+" different highlight method and have some other features )
+map  n <Plug>(easymotion-next)
+map  N <Plug>(easymotion-prev)
+set easymotion
+
+imap <C-j><C-k> <esc>
+set ideajoin
+
+"set keep-english-in-normal "启用自动切换功能
+"set keep-english-in-normal-and-restore-in-insert "返回插入模式时恢复输入法。
+"let keep_input_source_in_normal="com.apple.keylayout.US"
+
+set NERDTree
+map <C-w><C-w> :NERDTree<CR>
+set clipboard+=ideaput
+

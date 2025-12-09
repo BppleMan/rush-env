@@ -9,6 +9,9 @@ lint:
 bin:
     cargo run --bin bin -- arg1
 
+install package:
+    cargo install --path ./{{ package }}
+
 example:
     cargo run --example exname -- arg1
 
@@ -29,3 +32,14 @@ starship:
 
 ohmyzsh:
     curl -o ./repository/ohmyzsh.zip https://codeload.github.com/ohmyzsh/ohmyzsh/zip/refs/heads/master
+
+create:
+    az container create --resource-group BppleMan \
+        --name convertor2 \
+        --image ubuntu:latest \
+        -- cpu 1 \
+        -- memory 1 \
+        --azure-file-volume-account-name bppleman \
+        --azure-file-volume-account-key ${AZURE_FILE_VOLUME_ACCOUNT_KEY} \
+        --azure-file-volume-share-name convertor-data \
+        --azure-file-volume-mount-path /media/convertor-data

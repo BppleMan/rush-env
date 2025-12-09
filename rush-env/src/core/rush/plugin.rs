@@ -1,63 +1,58 @@
-use crate::core::condition::Condition;
-use crate::core::path::Paths;
-use crate::core::script::Scripts;
-use crate::core::script::export::ExportScript;
+use crate::core::rush::condition::Condition;
+use crate::core::rush::script::Scripts;
+use crate::core::rush::script::export::ExportScript;
 use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct Tool {
+pub struct Plugin {
     #[serde(rename = "@name")]
     pub name: String,
-    #[serde(rename = "@version", default)]
-    pub version: Option<String>,
-    pub description: String,
+    #[serde(rename = "@work_dir")]
+    pub work_dir: String,
     #[serde(default)]
     pub condition: Condition,
-    #[serde(default)]
     pub scripts: Scripts,
     #[serde(default)]
-    pub paths: Paths,
+    pub install: Install,
 }
 
 #[derive(Default, Debug, Clone, Serialize)]
 #[derive(AsRef, AsMut, Deref, DerefMut)]
-pub struct Tools(pub Vec<Tool>);
+pub struct Plugins(pub Vec<Plugin>);
 
-impl Tool {
+impl Plugin {
     pub fn tag() -> &'static str {
-        "<tool name version>"
+        "<plugin name work_dir>"
     }
 }
 
-impl Visit for Tool {
+impl Visit for Plugin {
     fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
         }
-        if let Some(version) = &self.version {
-            let name = format!("{}_VERSION", self.name.to_uppercase());
-            let value = version.clone();
-            ExportScript::export(name, value, writer)?;
-        }
-        self.paths.visit(context, writer)?;
+        let name = format!("{}_DIR", self.name.to_uppercase());
+        let value = self.work_dir.clone();
+        ExportScript::export(name, value, writer)?;
         self.scripts.visit(context, writer)?;
         Ok(())
     }
 }
 
-impl Visit for Tools {
+impl Visit for Plugins {
     fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
-        for language in &self.0 {
-            language.visit(context, writer)?;
+        for plugin in self.0.iter() {
+            context.plugin_work_dirs.push(&plugin.work_dir);
+            plugin.visit(context, writer)?;
         }
         Ok(())
     }
 }
 
-impl<'de> Deserialize<'de> for Tools {
+impl<'de> Deserialize<'de> for Plugins {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -65,8 +60,8 @@ impl<'de> Deserialize<'de> for Tools {
         #[derive(Deserialize)]
         struct List {
             #[serde(rename = "$value", default)]
-            element: Vec<Tool>,
+            element: Vec<Plugin>,
         }
-        Ok(Tools(List::deserialize(deserializer)?.element))
+        Ok(Plugins(List::deserialize(deserializer)?.element))
     }
 }

@@ -1,4 +1,4 @@
-use crate::core::script::Scripts;
+use crate::core::rush::script::Scripts;
 use crate::visitor::{Visit, Visitor, VisitorError};
 use serde::{Deserialize, Serialize};
 

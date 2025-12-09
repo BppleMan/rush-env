@@ -1,14 +1,14 @@
-use crate::core::condition::Condition;
-use crate::core::path::Paths;
-use crate::core::script::Scripts;
-use crate::core::script::export::ExportScript;
+use crate::core::rush::condition::Condition;
+use crate::core::rush::path::Paths;
+use crate::core::rush::script::Scripts;
+use crate::core::rush::script::export::ExportScript;
 use crate::visitor::{Visit, Visitor, VisitorError};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct Language {
+pub struct Tool {
     #[serde(rename = "@name")]
     pub name: String,
     #[serde(rename = "@version", default)]
@@ -24,15 +24,15 @@ pub struct Language {
 
 #[derive(Default, Debug, Clone, Serialize)]
 #[derive(AsRef, AsMut, Deref, DerefMut)]
-pub struct Languages(pub Vec<Language>);
+pub struct Tools(pub Vec<Tool>);
 
-impl Language {
+impl Tool {
     pub fn tag() -> &'static str {
-        "<language>"
+        "<tool name version>"
     }
 }
 
-impl Visit for Language {
+impl Visit for Tool {
     fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         if !self.condition.check() {
             return Ok(());
@@ -48,7 +48,7 @@ impl Visit for Language {
     }
 }
 
-impl Visit for Languages {
+impl Visit for Tools {
     fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
         for language in &self.0 {
             language.visit(context, writer)?;
@@ -57,7 +57,7 @@ impl Visit for Languages {
     }
 }
 
-impl<'de> Deserialize<'de> for Languages {
+impl<'de> Deserialize<'de> for Tools {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -65,8 +65,8 @@ impl<'de> Deserialize<'de> for Languages {
         #[derive(Deserialize)]
         struct List {
             #[serde(rename = "$value", default)]
-            element: Vec<Language>,
+            element: Vec<Tool>,
         }
-        Ok(Languages(List::deserialize(deserializer)?.element))
+        Ok(Tools(List::deserialize(deserializer)?.element))
     }
 }
