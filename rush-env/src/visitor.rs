@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Default, Debug)]
 pub struct Visitor<'a> {
     pub rush_dir: PathBuf,
-    pub section: Bubble,
+    // pub section: Bubble,
     pub paths: Vec<&'a Path>,
     pub plugin_work_dirs: Vec<&'a str>,
 }

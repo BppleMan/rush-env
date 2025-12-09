@@ -1,0 +1,14 @@
+[[proxy.scripts]]
+type = "var"
+name = "HTTP_PROXY"
+value = "http://127.0.0.1:7890"
+
+[[proxy.scripts]]
+type = "var"
+name = "HTTPS_PROXY"
+value = "http://127.0.0.1:7890"
+
+[[proxy.scripts]]
+type = "var"
+name = "ALL_PROXY"
+value = "socks5://127.0.0.1:7891"

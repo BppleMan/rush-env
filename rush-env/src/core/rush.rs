@@ -2,6 +2,7 @@ use crate::visitor::{Visit, Visitor, VisitorError};
 use language::Languages;
 use plugin::Plugins;
 use proxy::Proxy;
+use rush_say::{Bubble, CommentStyle};
 use script::Scripts;
 use serde::{Deserialize, Serialize};
 use tool::Tools;
@@ -35,31 +36,31 @@ pub struct Rush {
 
 impl Visit for Rush {
     fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
-        context.section.say(writer, "🌐 Proxy Section 🌐")?;
+        Bubble::shell(writer).say("🌐 Proxy Section 🌐")?;
         self.proxy.visit(context, writer)?;
         writeln!(writer)?;
 
-        context.section.say(writer, "🚀 Plugins Section 🚀")?;
+        Bubble::shell(writer).say("🚀 Plugins Section 🚀")?;
         self.plugins.visit(context, writer)?;
         writeln!(writer)?;
 
-        context.section.say(writer, "🔖 Functions Section  🔖")?;
+        Bubble::shell(writer).say("🔖 Functions Section  🔖")?;
         self.functions.visit(context, writer)?;
         writeln!(writer)?;
 
-        context.section.say(writer, "✨ Aliases Section ✨")?;
+        Bubble::shell(writer).say("✨ Aliases Section ✨")?;
         self.aliases.visit(context, writer)?;
         writeln!(writer)?;
 
-        context.section.say(writer, "🌱 Environment Variables Section 🌱")?;
+        Bubble::shell(writer).say("🌱 Environment Variables Section 🌱")?;
         self.envs.visit(context, writer)?;
         writeln!(writer)?;
 
-        context.section.say(writer, "🧑‍💻 Languages Section 🧑‍💻")?;
+        Bubble::shell(writer).say("🧑‍💻 Languages Section 🧑‍💻")?;
         self.languages.visit(context, writer)?;
         writeln!(writer)?;
 
-        context.section.say(writer, "🛠️ Tools Section 🛠️")?;
+        Bubble::shell(writer).say("🛠️ Tools Section 🛠️")?;
         self.tools.visit(context, writer)?;
         writeln!(writer)?;
         Ok(())

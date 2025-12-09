@@ -51,47 +51,65 @@ fn main() -> color_eyre::Result<()> {
 
     println!("cli: {cli:?}");
 
-    let bubble = if cli.example {
-        Bubble::example()
-    }
-    // 支持直接参数传入或标准输入（如管道/重定向/多行）
-    else {
-        let bubble = if let Some(text) = cli.text {
-            Bubble::new(text)
+    if cli.example {
+        say_example()?;
+    } else {
+        // 1. 准备输出目标
+        let mut stdout = io::stdout();
+
+        // 2. 构建气泡注释器
+        let bubble = Bubble {
+            writer: &mut stdout,
+            width: cli.width,
+            margin: cli.margin,
+            padding: cli.padding,
+            border: cli.border.build(),
+            align: cli.align,
+            text_align: cli.text_align,
+            comment: cli.comment.map(|ct| ct.build()),
+        };
+
+        // 3. 准备文本内容
+        let text = if let Some(text) = cli.text {
+            text
         } else {
             let mut content = String::new();
             io::stdin().read_to_string(&mut content)?;
-            content = content.strip_suffix('\n').unwrap_or(&content).to_string();
-            Bubble::new(content)
+            content.strip_suffix('\n').unwrap_or(&content).to_string()
         };
-        let mut bubble = bubble
-            .set_width(cli.width)
-            .set_margin(cli.margin)
-            .set_padding(cli.padding)
-            .set_border(cli.border.build())
-            .set_align(cli.align)
-            .set_text_align(cli.text_align);
-        if let Some(comment_type) = cli.comment {
-            bubble = bubble.set_comment(comment_type.build());
-        }
-        bubble
-    };
-    let mut stdout = io::stdout();
-    if cli.example {
-        let mut rng = SimpleRng::new();
-        loop {
-            let x = rng.next_usize(100);
-            let b = bubble.clone().random_style(x);
 
-            // 写一组输出；失败时判断是否是 BrokenPipe
-            match b.say(&mut stdout) {
-                Ok(()) => {}
-                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => break, // 用户在 less 里 q 了
-                Err(e) => return Err(e.into()),
-            }
-        }
-    } else {
-        bubble.say(&mut io::stdout())?;
+        // 4. say
+        bubble.say(&text)?;
     }
+
     Ok(())
+}
+
+pub fn say_example() -> color_eyre::Result<()> {
+    let mut stdout = io::stdout();
+    let example_text = r#"
+- 📄 为复杂配置文件提供清晰的注释气泡框，增强可读性和理解性
+- 📝 将注释文本转换为结构化气泡对话框，使大型配置文件更易维护
+- 🖌️ 支持多种边框样式自定义（圆角、方形等）， 适应不同配置文件的风格需求
+- 💬 提供多种注释风格（如Java文档风格），兼容各类编程语言和配置格式
+- 📏 灵活的排版控制系统：
+    * 可调整文本宽度，适应不同显示环境
+    * 自定义内边距(padding)和外边距(margin)
+    * 多种对齐方式（左对齐、居中等）
+- 🧰 可输出到任何实现了Write trait的目标，便于集成到各种配置生成工具
+- 🔄 支持链式调用API（如.set_width().set_border()），简化使用流程
+"#;
+    let mut rng = SimpleRng::new();
+    loop {
+        let x = rng.next_usize(100);
+        let mut bubble = Bubble::example(&mut stdout);
+        bubble.random_style(x);
+
+        // 写一组输出；失败时判断是否是 BrokenPipe
+        match bubble.say(example_text) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::BrokenPipe => break Ok(()), // 用户在 less 里 q 了
+            Err(e) => return Err(e.into()),
+        }
+    }
 }

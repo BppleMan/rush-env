@@ -25,14 +25,14 @@ pub enum SubCmd {
 
 impl SubCmd {
     pub fn execute(self, rush_dir: impl AsRef<Path>, executable: impl AsRef<Path>) -> Result<()> {
-        match self {
-            SubCmd::Init => {
-                // 这里可以添加初始化逻辑
-            }
-            SubCmd::Install => {
-                // 这里可以添加安装逻辑
-            }
-        }
+        // match self {
+        //     SubCmd::Init => {
+        //         // 这里可以添加初始化逻辑
+        //     }
+        //     SubCmd::Install => {
+        //         // 这里可以添加安装逻辑
+        //     }
+        // }
         Ok(())
     }
 
