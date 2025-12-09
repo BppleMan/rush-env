@@ -1,6 +1,6 @@
 use crate::core::rush::condition::Condition;
 use crate::visitor::{Visit, Visitor, VisitorError};
-use rush_var::expand_env_vars;
+use rush_var::expand_var_env;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -24,7 +24,7 @@ impl Visit for SourceScript {
         if !self.condition.check() {
             return Ok(());
         }
-        let expanded_file_path = expand_env_vars(&self.file);
+        let expanded_file_path = expand_var_env(&self.file);
         let file = PathBuf::from(expanded_file_path);
         if !file.is_file() {
             return Err(VisitorError::SourceFileNotExist(self.file.clone()));
