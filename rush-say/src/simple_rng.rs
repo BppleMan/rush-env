@@ -4,10 +4,16 @@ use std::time::SystemTime;
 #[derive(Clone, Copy)]
 pub struct SimpleRng(u64);
 
+impl Default for SimpleRng {
+    fn default() -> Self {
+        Self(Self::entropy())
+    }
+}
+
 impl SimpleRng {
     /// 尽量“全平台可用”的种子收集（非安全），永不 panic
     pub fn new() -> Self {
-        Self(Self::entropy())
+        Self::default()
     }
 
     /// 可显式指定种子
