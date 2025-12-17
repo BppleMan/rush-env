@@ -1,58 +1,36 @@
 mod cli;
 
-use crate::cli::{Cli, SubCmd};
+use crate::cli::RushCli;
 use clap::Parser;
 use color_eyre::Result;
-use color_eyre::eyre::{OptionExt, WrapErr};
+use color_eyre::eyre::WrapErr;
 use rush_env::core::rush::Rush;
-use rush_env::visitor::{Visit, Visitor};
-use rush_env::{init_backtrace, init_base_dir};
-use rush_say::Bubble;
-use std::io::stdout;
-use std::path::{Path, PathBuf};
-
-const TEMPLATE: &str = include_str!("../assets/template/rush.xml");
+use rush_env::core::rush_context::RushContext;
+use rush_env::scaffold::Scaffold;
+use rush_env::{init_backtrace, init_base_dir, init_log};
+use tracing::info;
 
 fn main() -> Result<()> {
-    let base_dir = init_base_dir();
-    init_backtrace();
-    // init_log(&base_dir);
+    info!("[Rush Env]");
+    let cli = RushCli::parse();
 
-    // let executable = Path::new(&std::env::args().next().ok_or_eyre("Executable name not found")?).canonicalize()?;
-    // println!("# {}", executable.display());
-    // // let cli = Cli::parse();
-    // // println!("{cli:#?}");
-    //
-    // #[cfg(debug_assertions)]
-    // let rush_dir = unsafe {
-    //     let rush_dir = std::env::var("DOTDIR").wrap_err("DOTDIR environment variable must be set")?;
-    //     std::env::set_var("RUSH_DIR", &rush_dir);
-    //     PathBuf::from(rush_dir)
-    // };
-    // #[cfg(not(debug_assertions))]
-    // let rush_dir = PathBuf::new(std::env::var("RUSH_DIR").wrap_err("RUSH_DIR environment variable must be set")?);
-    //
-    // let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
-    // let mut context = Visitor {
-    //     rush_dir,
-    //     section: Bubble::new(64, 2),
-    //     ..Default::default()
-    // };
-    // rush.visit(&mut context, &mut stdout())?;
-    //
-    // match cli.sub_cmd {
-    //     None => {
-    //         let rush: Rush = quick_xml::de::from_str(TEMPLATE)?;
-    //         println!("{rush:#?}");
-    //         let mut context = Visitor {
-    //             rush_dir,
-    //             section: Section::new(64, 2),
-    //             ..Default::default()
-    //         };
-    //         rush.visit(&mut context, &mut stdout())?;
-    //     }
-    //     Some(cmd) => cmd.execute(&rush_dir, &executable)?,
-    // }
+    let rush_dir = match &cli.rush_dir {
+        Some(dir) => dir.clone(),
+        None => init_base_dir(),
+    };
+
+    init_backtrace();
+    init_log(&rush_dir);
+    std::env::set_current_dir(&rush_dir).wrap_err("无法切换到 rush 目录")?;
+
+    let mut context = RushContext::from_env().wrap_err("无法初始化 RushContext")?;
+    context.push_var("RUSH_DIR", rush_dir.to_string_lossy());
+    let preset: Rush = toml::from_str(Scaffold::rush_toml()?)?;
+    println!("{preset:#?}");
+    preset.install_plugins(&mut context)?;
+
+    info!("初始化脚手架到目录: {}", rush_dir.display());
+    Scaffold::extract_scaffold(&rush_dir)?;
 
     Ok(())
 }

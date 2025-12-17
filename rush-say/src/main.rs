@@ -8,7 +8,6 @@ use std::io::{self, Read};
 
 /// 终端气泡注释输出工具，支持自动换行、视觉居中、中文emoji宽度处理。
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about)]
 struct Cli {
     /// 输出一个示例注释框
     #[arg(long, value_name = "EXAMPLE", default_value_t = false)]
@@ -49,6 +48,7 @@ fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
 
+    #[cfg(debug_assertions)]
     println!("cli: {cli:?}");
 
     if cli.example {

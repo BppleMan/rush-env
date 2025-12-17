@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RawScript {
-    #[serde(rename = "$text")]
     pub script: String,
     #[serde(default)]
     pub condition: Condition,

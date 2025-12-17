@@ -43,3 +43,12 @@ create:
         --azure-file-volume-account-key ${AZURE_FILE_VOLUME_ACCOUNT_KEY} \
         --azure-file-volume-share-name convertor-data \
         --azure-file-volume-mount-path /media/convertor-data
+
+docker:
+    docker build -t rush-env:latest .
+
+docker-run:
+    cargo zigbuild --target aarch64-unknown-linux-musl -p rush-env
+    docker run -it --rm \
+        -v ${PWD}/target/aarch64-unknown-linux-musl/debug/rush:/usr/local/bin/rush \
+        rush-env:latest

@@ -26,9 +26,7 @@ pub enum ARCH {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Platform {
-    #[serde(rename = "@os", default)]
     pub os: Option<OS>,
-    #[serde(rename = "@arch", default)]
     pub arch: Option<ARCH>,
 }
 

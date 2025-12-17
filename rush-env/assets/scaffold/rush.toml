@@ -1,0 +1,358 @@
+# ╭────────────────────────────────────╮
+# │               proxy                │
+# ╰────────────────────────────────────╯
+[[proxy.scripts]]
+type = "var"
+name = "HTTP_PROXY"
+value = "http://127.0.0.1:7890"
+
+[[proxy.scripts]]
+type = "var"
+name = "HTTPS_PROXY"
+value = "http://127.0.0.1:7890"
+
+[[proxy.scripts]]
+type = "var"
+name = "ALL_PROXY"
+value = "socks5://127.0.0.1:7891"
+
+[[proxy.scripts]]
+type = "var"
+name = "NO_PROXY"
+value = "192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, 127.0.0.1, *.local, seed-sequoia.siri.apple.com, sequoia.apple.com, *.crashlytics.com, *.bppleman.com, *.bppleman.cn, *.gs, *.gt, host.docker.internal"
+
+[[proxy.scripts]]
+type = "function"
+name = "pr"
+body = """
+HTTP_PROXY=${HTTP_PROXY} \
+HTTPS_PROXY=${HTTPS_PROXY} \
+ALL_PROXY=${ALL_PROXY} \
+$@
+"""
+
+# ╭────────────────────────────────────╮
+# │                envs                │
+# ╰────────────────────────────────────╯
+[[envs]]
+name = "EDITOR"
+value = "nvim"
+
+[[envs]]
+name = "ICLOUD"
+value = "${HOME}/Library/Mobile Documents/com~apple~CloudDocs"
+[envs.condition]
+type = "all"
+[[envs.condition.conditions]]
+type = "dir_exists"
+path = "${HOME}/Library/Mobile Documents/com~apple~CloudDocs"
+[[envs.condition.conditions]]
+type = "platform"
+os = "macos"
+
+[[envs]]
+name = "MANPAGER"
+value = "sh -c 'col -bx | bat -l main'"
+
+
+# ╭────────────────────────────────────╮
+# │              antidote              │
+# ╰────────────────────────────────────╯
+[[plugins]]
+name = "antidote"
+work_dir = "${RUSH_DIR}/antidote"
+
+[[plugins.scripts]]
+type = "source"
+file = "${ANTIDOTE_DIR}/.antidote/antidote.zsh"
+
+[[plugins.scripts]]
+type = "raw"
+script = "pr antidote load"
+
+[[plugins.install]]
+type = "git"
+url = "https://github.com/mattmc3/antidote.git"
+dest = "${RUSH_DIR}/plugins/antidote/.antidote"
+branch = "main"
+
+# ╭────────────────────────────────────╮
+# │              starship              │
+# ╰────────────────────────────────────╯
+[[plugins]]
+name = "starship"
+work_dir = "${RUSH_DIR}/starship"
+
+[[plugins.scripts]]
+type = "export"
+name = "STARSHIP_CONFIG"
+value = "${STARSHIP_DIR}/starship.toml"
+
+[[plugins.scripts]]
+type = "export"
+name = "STARSHIP_CACHE"
+value = "${STARSHIP_DIR}/cache"
+
+[[plugins.scripts]]
+type = "eval"
+script = "${STARSHIP_DIR}/starship init zsh"
+
+
+# ╭────────────────────────────────────╮
+# │             functions              │
+# ╰────────────────────────────────────╯
+[[functions]]
+name = "has"
+body = """command -v "$1" >/dev/null 2>&1"""
+
+[[functions]]
+name = "file_exists"
+body = """[[ -f "$1" ]]"""
+
+[[functions]]
+name = "dir_exists"
+body = """[[ -d "$1" ]]"""
+
+[[functions]]
+name = "link_exists"
+body = """[[ -L "$1" ]]"""
+
+[[functions]]
+name = "cd"
+body = """builtin cd "$@" && ls"""
+
+[[functions]]
+name = "gi"
+body = """curl -sLw n "https://www.toptal.com/developers/gitignore/api/$*" """
+
+[[functions]]
+name = "line_cursor"
+body = """printf "\\e[5 q" > "$TTY" """
+
+[[functions]]
+name = "batf"
+body = """tail -f "$1" | bat --paging=never -l log"""
+
+[[functions]]
+name = "color_test"
+body = """
+T='gYw' # The test text
+
+echo -e "\n 40m 41m 42m 43m 44m 45m 46m 47m";
+
+for FGs in ' m' ' 1m' ' 30m' '1;30m' ' 31m' '1;31m' ' 32m' \\
+'1;32m' ' 33m' '1;33m' ' 34m' '1;34m' ' 35m' '1;35m' \\
+' 36m' '1;36m' ' 37m' '1;37m';
+    do FG=${FGs// /}
+    echo -en " $FGs \\033[$FG $T "
+    for BG in 40m 41m 42m 43m 44m 45m 46m 47m;
+        do echo -en "$EINS \\033[$FG\\033[$BG $T \\033[0m";
+    done
+    echo;
+done
+echo
+"""
+
+[[functions]]
+name = "az_token"
+body = """
+az account get-access-token \\
+    --resource https://ossrdbms-aad.database.windows.net \\
+    --query accessToken \\
+    --output tsv
+"""
+
+[[functions]]
+name = "get_id"
+body = """security find-identity -v -p codesigning"""
+
+[[functions]]
+name = "glog"
+body = """
+git log --oneline --topo-order \
+    --date-order --branches \
+    --tags --remotes \
+    --notes --graph
+"""
+
+[[functions]]
+name = "glogc"
+body = """
+git log --oneline --topo-order \
+    --date-order --branches \
+    --tags --remotes \
+    --notes --decorate=no \
+    --pretty=format:%H
+"""
+
+[[functions]]
+name = "ggraph"
+body = """git commit-graph write --reachable"""
+
+
+# ╭────────────────────────────────────╮
+# │              aliases               │
+# ╰────────────────────────────────────╯
+[[aliases]]
+name = "ls"
+command = "aza -l --icons"
+
+[[aliases]]
+name = "la"
+command = "aza -lag --icons"
+
+[[aliases]]
+name = "reload_shell"
+command = "exec -l \\${SHELL}"
+
+[[aliases]]
+name = "hack_attr"
+command = "sudo xattr -rd com.apple.quarantine"
+
+[[aliases]]
+name = "zhsrc"
+command = "nvim \\${HOME}/.zshrc"
+
+[[aliases]]
+name = "zshenv"
+command = "nvim \\${HOME}/.zshenv"
+
+[[aliases]]
+name = "vimrc"
+command = "nvim \\${HOME}/.vimrc"
+
+[[aliases]]
+name = "nvimrc"
+command = "nvim \\${HOME}/.config/nvim/init.vim"
+
+[[aliases]]
+name = "ssh-ed25519"
+command = "ssh-keygen -t ed25519 -C"
+
+# ╭────────────────────────────────────╮
+# │             languages              │
+# ╰────────────────────────────────────╯
+[[languages]]
+name = "java"
+version = "17"
+enable = true
+[languages.condition]
+type = "platform"
+os = "macos"
+[[languages.scripts]]
+type = "export"
+name = "JAVA_HOME"
+value = "$(/usr/libexec/java_home -v ${JAVA_VERSION})"
+[languages.scripts.condition]
+type = "platform"
+os = "macos"
+[[languages.paths]]
+value = "${JAVA_HOME}/bin"
+
+
+[[languages]]
+name = "rust"
+desc = "Rust and Cargo"
+enable = true
+[[languages.scripts]]
+type = "source"
+file = "${HOME}/.cargo/env"
+
+
+[[languages]]
+name = "flutter"
+desc = "Flutter SDK and Dart"
+enable = true
+[[languages.scripts]]
+type = "export"
+name = "PUB_HOSTED_URL"
+value = "https://pub.flutter-io.cn"
+[[languages.scripts]]
+type = "export"
+name = "FLUTTER_STORAGE_BASE_URL"
+value = "https://storage.flutter-io.cn"
+
+
+[[languages]]
+name = "ruby"
+version = "3.1.0"
+desc = "Ruby and gem"
+enable = true
+[[languages.scripts]]
+type = "eval"
+script = "rbenv init - zsh"
+[languages.scripts.condition]
+type = "has"
+command = "rbenv"
+[[languages.scripts]]
+type = "export"
+name = "GEM_HOME"
+value = "${HOME}/.gem"
+[[languages.paths]]
+value = "${GEM_HOME}/ruby/${RUBY_VERSION}/bin"
+
+
+[[languages]]
+name = "nodejs"
+desc = "nodejs and nvm | fnm | pnpm"
+enable = true
+[[languages.scripts]]
+type = "export"
+name = "NVM_DIR"
+value = "${HOME}/.nvm"
+[languages.scripts.condition]
+type = "file_exists"
+path = "${HOME}/.nvm/nvm.sh"
+[[languages.scripts]]
+type = "source"
+file = "${NVM_DIR}/nvm.sh"
+[[languages.scripts]]
+type = "eval"
+script = "fnm env --use-on-cd --shell zsh"
+[languages.scripts.condition]
+type = "has"
+command = "fnm"
+[[languages.scripts]]
+type = "export"
+name = "PNPM_HOME"
+value = "${HOME}/.pnpm-store"
+[[languages.scripts]]
+type = "raw"
+script = "has ng && source <(ng completion script zsh)"
+[[languages.paths]]
+value = "${PNPM_HOME}"
+
+
+[[languages]]
+name = "dotnet"
+desc = "dotnet SDK"
+enable = true
+[[languages.scripts]]
+type = "export"
+name = "DOTNET_ROOT"
+value = "/usr/local/share/dotnet"
+[languages.scripts.condition]
+type = "has"
+command = "dotnet"
+[[languages.paths]]
+value = "${DOTNET_ROOT}"
+
+
+[[languages]]
+name = "haskell"
+desc = "Haskell and GHCUP"
+enable = true
+[[languages.scripts]]
+type = "source"
+file = "${HOME}/.ghcup/env"
+[languages.scripts.condition]
+type = "file_exists"
+path = "${HOME}/.ghcup/env"
+
+
+[[languages.deno]]
+name = "deno"
+desc = "Deno runtime"
+enable = true
+[[languages.paths]]
+value = "${HOME}/.deno/bin"

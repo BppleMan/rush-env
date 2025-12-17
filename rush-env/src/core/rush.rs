@@ -1,11 +1,14 @@
-use crate::visitor::{Visit, Visitor, VisitorError};
-use language::Languages;
-use plugin::Plugins;
+use crate::core::rush::language::Language;
+use crate::core::rush::plugin::Plugin;
+use crate::core::rush::script::alias::AliasScript;
+use crate::core::rush::script::export::ExportScript;
+use crate::core::rush::script::function::FunctionScript;
+use crate::core::rush::tool::Tool;
+use crate::core::rush_context::RushContext;
+use color_eyre::Result;
 use proxy::Proxy;
-use rush_say::{Bubble, CommentStyle};
-use script::Scripts;
 use serde::{Deserialize, Serialize};
-use tool::Tools;
+use tracing::info;
 
 pub mod platform;
 pub mod plugin;
@@ -21,48 +24,64 @@ pub mod tool;
 pub struct Rush {
     pub proxy: Proxy,
     #[serde(default)]
-    pub plugins: Plugins,
+    pub plugins: Vec<Plugin>,
     #[serde(default)]
-    pub functions: Scripts,
+    pub functions: Vec<FunctionScript>,
     #[serde(default)]
-    pub aliases: Scripts,
+    pub aliases: Vec<AliasScript>,
     #[serde(default)]
-    pub envs: Scripts,
+    pub envs: Vec<ExportScript>,
     #[serde(default)]
-    pub languages: Languages,
+    pub languages: Vec<Language>,
     #[serde(default)]
-    pub tools: Tools,
+    pub tools: Vec<Tool>,
 }
 
-impl Visit for Rush {
-    fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
-        Bubble::shell(writer).say("🌐 Proxy Section 🌐")?;
-        self.proxy.visit(context, writer)?;
-        writeln!(writer)?;
+impl Rush {
+    pub fn install_plugins(&self, context: &mut RushContext) -> Result<()> {
+        for plugin in &self.plugins {
+            Self::install_plugin(plugin, context)?;
+        }
 
-        Bubble::shell(writer).say("🚀 Plugins Section 🚀")?;
-        self.plugins.visit(context, writer)?;
-        writeln!(writer)?;
+        Ok(())
+    }
 
-        Bubble::shell(writer).say("🔖 Functions Section  🔖")?;
-        self.functions.visit(context, writer)?;
-        writeln!(writer)?;
-
-        Bubble::shell(writer).say("✨ Aliases Section ✨")?;
-        self.aliases.visit(context, writer)?;
-        writeln!(writer)?;
-
-        Bubble::shell(writer).say("🌱 Environment Variables Section 🌱")?;
-        self.envs.visit(context, writer)?;
-        writeln!(writer)?;
-
-        Bubble::shell(writer).say("🧑‍💻 Languages Section 🧑‍💻")?;
-        self.languages.visit(context, writer)?;
-        writeln!(writer)?;
-
-        Bubble::shell(writer).say("🛠️ Tools Section 🛠️")?;
-        self.tools.visit(context, writer)?;
-        writeln!(writer)?;
+    fn install_plugin(plugin: &Plugin, context: &mut RushContext) -> Result<()> {
+        info!("安装插件: {}", plugin.name);
+        plugin.install.install(context)?;
         Ok(())
     }
 }
+
+// impl Visit for Rush {
+//     fn visit<'a>(&'a self, context: &mut Visitor<'a>, writer: &mut impl std::io::Write) -> Result<(), VisitorError> {
+//         Bubble::shell(writer).say("🌐 Proxy Section 🌐")?;
+//         self.proxy.visit(context, writer)?;
+//         writeln!(writer)?;
+//
+//         Bubble::shell(writer).say("🚀 Plugins Section 🚀")?;
+//         self.plugins.visit(context, writer)?;
+//         writeln!(writer)?;
+//
+//         Bubble::shell(writer).say("🔖 Functions Section  🔖")?;
+//         self.functions.visit(context, writer)?;
+//         writeln!(writer)?;
+//
+//         Bubble::shell(writer).say("✨ Aliases Section ✨")?;
+//         self.aliases.visit(context, writer)?;
+//         writeln!(writer)?;
+//
+//         Bubble::shell(writer).say("🌱 Environment Variables Section 🌱")?;
+//         self.envs.visit(context, writer)?;
+//         writeln!(writer)?;
+//
+//         Bubble::shell(writer).say("🧑‍💻 Languages Section 🧑‍💻")?;
+//         self.languages.visit(context, writer)?;
+//         writeln!(writer)?;
+//
+//         Bubble::shell(writer).say("🛠️ Tools Section 🛠️")?;
+//         self.tools.visit(context, writer)?;
+//         writeln!(writer)?;
+//         Ok(())
+//     }
+// }

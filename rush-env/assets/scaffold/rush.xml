@@ -75,19 +75,24 @@
         </function>
     </functions>
     <aliases>
-        <alias name="ls">exa -l --icons</alias>
-        <alias name="la">exa -lag --icons</alias>
+        <alias name="ls">eza -l --icons</alias>
+        <alias name="la">eza -lag --icons</alias>
         <alias name="zshrc">nvim \${HOME}/.zshrc</alias>
         <alias name="zshenv">nvim \${HOME}/.zshenv</alias>
         <alias name="vimrc">nvim \${RUSH_DIR}/vim_config/.vimrc</alias>
         <alias name="nvimrc">nvim \${RUSH_DIR}/vim_config/init.vim</alias>
         <alias name="reload_shell">exec -l \${SHELL}</alias>
         <alias name="hack_attr">sudo xattr -rd com.apple.quarantine</alias>
-        <alias name="az_token">az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv</alias>
+        <alias name="az_token">az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query
+            accessToken --output tsv
+        </alias>
         <alias name="get_id">security find-identity -v -p codesigning</alias>
         <alias name="ssh-keygen">ssh-keygen -t ed25519 -C "</alias>
-        <alias name="glog">git log --oneline --topo-order --date-order --branches --tags --remotes --notes --graph</alias>
-        <alias name="glogc">git log --oneline --topo-order --date-order --branches --tags --remotes --notes --decorate=no --pretty=format:%H</alias>
+        <alias name="glog">git log --oneline --topo-order --date-order --branches --tags --remotes --notes --graph
+        </alias>
+        <alias name="glogc">git log --oneline --topo-order --date-order --branches --tags --remotes --notes
+            --decorate=no --pretty=format:%H
+        </alias>
         <alias name="ggraph">git commit-graph write --reachable</alias>
     </aliases>
     <envs>
