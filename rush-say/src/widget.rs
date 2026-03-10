@@ -24,7 +24,7 @@ pub struct Size {
     pub height: usize,
 }
 
-#[derive(Default, Debug, Clone, ValueEnum)]
+#[derive(Default, Debug, Copy, Clone, ValueEnum)]
 pub enum Align {
     #[default]
     Center,

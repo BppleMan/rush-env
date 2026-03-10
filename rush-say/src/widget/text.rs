@@ -54,7 +54,7 @@ impl Text {
         self
     }
 
-    pub fn wrap_text(&mut self, max_width: usize) -> Vec<TextLine> {
+    fn wrap_text(&mut self, max_width: usize) -> Vec<TextLine> {
         let mut lines: Vec<TextLine> = vec![];
         let mut current_line: TextLine = TextLine::default();
         for grapheme in std::mem::take(&mut self.graphemes) {

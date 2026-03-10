@@ -58,7 +58,7 @@ fn main() -> color_eyre::Result<()> {
         let mut stdout = io::stdout();
 
         // 2. 构建气泡注释器
-        let bubble = Bubble {
+        let mut bubble = Bubble {
             writer: &mut stdout,
             width: cli.width,
             margin: cli.margin,

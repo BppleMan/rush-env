@@ -58,7 +58,7 @@ where
         }
     }
 
-    pub fn say(self, text: impl AsRef<str>) -> std::io::Result<()> {
+    pub fn say(&mut self, text: impl AsRef<str>) -> std::io::Result<()> {
         let mut container = Container::new(Text::new(text).set_align(self.text_align))
             .set_border(self.border)
             .set_padding(self.padding)
@@ -145,7 +145,7 @@ mod tests {
 - 🧩 易于集成和扩展
 "#;
         let mut buffer = Vec::new();
-        let bubble = Bubble {
+        let mut bubble = Bubble {
             width: 50,
             padding: 0,
             align: Align::Center,
