@@ -22,7 +22,7 @@ pub struct TextGrapheme {
 
 #[derive(Default, Debug, Clone)]
 pub struct TextLine {
-    pub graphemes: Vec<TextGrapheme>,
+    pub byte_range: Range<usize>,
     pub width: usize,
 }
 
@@ -54,10 +54,10 @@ impl Text {
         self
     }
 
-    fn wrap_text(&mut self, max_width: usize) -> Vec<TextLine> {
+    fn wrap_text(&self, max_width: usize) -> Vec<TextLine> {
         let mut lines: Vec<TextLine> = vec![];
         let mut current_line: TextLine = TextLine::default();
-        for grapheme in std::mem::take(&mut self.graphemes) {
+        for grapheme in &self.graphemes {
             let grapheme_str = &self.content[grapheme.range.clone()];
             match grapheme_str {
                 "\n" | "\r" | "\r\n" => {
@@ -109,17 +109,16 @@ impl TextGrapheme {
 }
 
 impl TextLine {
-    pub fn push(&mut self, grapheme: TextGrapheme) {
+    pub fn push(&mut self, grapheme: &TextGrapheme) {
         self.width += grapheme.width;
-        self.graphemes.push(grapheme);
+        if self.byte_range.start == self.byte_range.end {
+            self.byte_range.start = grapheme.range.start;
+        }
+        self.byte_range.end = grapheme.range.end;
     }
 
     pub fn render<'a>(&'a self, content: &'a str) -> &'a str {
-        let range = match (self.graphemes.first(), self.graphemes.last()) {
-            (Some(first), Some(last)) => first.range.start..last.range.end,
-            _ => 0..0, // 如果没有字符，则返回空范围
-        };
-        &content[range]
+        &content[self.byte_range.start..self.byte_range.end]
     }
 }
 
