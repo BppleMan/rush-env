@@ -87,7 +87,7 @@ impl SimpleRng {
             (&x as *const u8 as usize) as u64
         };
         fn tag() {}
-        let fn_addr = (tag as usize) as u64;
+        let fn_addr = (tag as *const () as usize) as u64;
 
         // 5) 综合混洗
         let seed0 = t ^ (pid.rotate_left(7)) ^ (tid_hash.rotate_left(13)) ^ (stack_addr.rotate_left(29)) ^ (fn_addr.rotate_left(47));

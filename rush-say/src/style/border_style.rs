@@ -6,6 +6,8 @@ pub struct BorderStyle {
     pub top_right: char,
     pub bottom_left: char,
     pub bottom_right: char,
+    pub separate_left: char,
+    pub separate_right: char,
     pub horizontal: char,
     pub vertical: char,
     pub size: usize,
@@ -30,29 +32,29 @@ impl Display for BorderStyle {
 macro_rules! border_factory {
     ($cb:ident) => {
         $cb! {
-            simple, "simple", '+', '+', '+', '+', '─', '│', 1;
-            single, "single", '┌', '┐', '└', '┘', '─', '│', 1;
-            double, "double", '╔', '╗', '╚', '╝', '═', '║', 1;
-            rounded, "rounded", '╭', '╮', '╰', '╯', '─', '│', 1;
-            heavy, "heavy", '┏', '┓', '┗', '┛', '━', '┃', 1;
-            block, "block", '█', '█', '█', '█', '█', '█', 1;
-            dotted, "dotted", '.', '.', ':', ':', '.', ':', 1;
-            ascii_light, "ascii_light", '/', '\\', '\\', '/', '-', '|', 1;
-            angled, "angled", '╱', '╲', '╲', '╱', '─', '│', 1;
-            thin_double, "thin_double", '╒', '╕', '╘', '╛', '─', '│', 1;
-            square, "square", '■', '■', '■', '■', '■', '■', 1;
-            dashed_round, "dashed_round", '●', '●', '●', '●', '•', '•', 1;
-            wave, "wave", '≈', '≈', '≈', '≈', '≈', '∣', 1;
-            zigzag, "zigzag", '╱', '╲', '╲', '╱', '╌', '╎', 1;
-            dotted_box, "dotted_box", '∙', '∙', '∙', '∙', '·', '·', 1;
-            triangle_chain, "triangle_chain", '◤', '◥', '◣', '◢', '▲', '▶', 1;
-            ascii_flower, "ascii_flower", '*', '*', '*', '*', '~', '|', 1;
+            simple,        "simple",        '+', '+', '+', '+', '+', '+', '─', '│', 1;
+            single,        "single",        '┌', '┐', '└', '┘', '├', '┤', '─', '│', 1;
+            double,        "double",        '╔', '╗', '╚', '╝', '╠', '╣', '═', '║', 1;
+            rounded,       "rounded",       '╭', '╮', '╰', '╯', '├', '┤', '─', '│', 1;
+            heavy,         "heavy",         '┏', '┓', '┗', '┛', '┣', '┫', '━', '┃', 1;
+            block,         "block",         '█', '█', '█', '█', '█', '█', '█', '█', 1;
+            dotted,        "dotted",        '.', '.', ':', ':', ':', ':', '.', ':', 1;
+            ascii_light,   "ascii_light",   '/', '\\', '\\', '/', '<', '>', '-', '|', 1;
+            angled,        "angled",        '╱', '╲', '╲', '╱', '│', '│', '─', '│', 1;
+            thin_double,   "thin_double",   '╒', '╕', '╘', '╛', '╞', '╡', '─', '│', 1;
+            square,        "square",        '■', '■', '■', '■', '■', '■', '■', '■', 1;
+            dashed_round,  "dashed_round",  '●', '●', '●', '●', '●', '●', '•', '•', 1;
+            wave,          "wave",          '≈', '≈', '≈', '≈', '∣', '∣', '≈', '∣', 1;
+            zigzag,        "zigzag",        '╱', '╲', '╲', '╱', '╎', '╎', '╌', '╎', 1;
+            dotted_box,    "dotted_box",    '∙', '∙', '∙', '∙', '∙', '∙', '·', '·', 1;
+            triangle_chain,"triangle_chain",'◤', '◥', '◣', '◢', '◀', '▶', '▲', '▶', 1;
+            ascii_flower,  "ascii_flower",  '*', '*', '*', '*', '*', '*', '~', '|', 1;
         }
     };
 }
 
 macro_rules! border_style {
-    ($($name:ident, $con:expr, $top_left:expr, $top_right:expr, $bottom_left:expr, $bottom_right:expr, $horizontal:expr, $vertical:expr, $size:expr);+ $(;)?) => {
+    ($($name:ident, $con:expr, $top_left:expr, $top_right:expr, $bottom_left:expr, $bottom_right:expr, $separate_left:expr, $separate_right:expr, $horizontal:expr, $vertical:expr, $size:expr);+ $(;)?) => {
         impl BorderStyle {
             $(
                 pub const fn $name() -> Self {
@@ -61,6 +63,8 @@ macro_rules! border_style {
                         top_right: $top_right,
                         bottom_left: $bottom_left,
                         bottom_right: $bottom_right,
+                        separate_left: $separate_left,
+                        separate_right: $separate_right,
                         horizontal: $horizontal,
                         vertical: $vertical,
                         size: $size,
