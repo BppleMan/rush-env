@@ -1,12 +1,14 @@
+use crate::error::layout_error::SourceSpan;
+use rush_ext::Getter;
 use std::ops::{Add, AddAssign, Index};
 use std::slice::Iter;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Getter)]
 pub struct Graphemes {
     content: String,
-    graphemes: Vec<Grapheme>
+    graphemes: Vec<Grapheme>,
 }
 
 impl Graphemes {
@@ -136,10 +138,7 @@ impl<'a> Iterator for GraphemesIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let segment = self.graphemes.next()?;
         let text = &self.content[segment.start..segment.end];
-        Some(GraphemeText {
-            text,
-            grapheme: segment,
-        })
+        Some(GraphemeText { text, grapheme: segment })
     }
 }
 
@@ -155,21 +154,27 @@ impl<'a> IntoIterator for &'a Graphemes {
     }
 }
 
+impl<'a> From<&'a GraphemeText<'a>> for SourceSpan {
+    fn from(value: &'a GraphemeText<'a>) -> Self {
+        SourceSpan::new(value.start(), value.as_str().len())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use color_eyre::{eyre::eyre, Result};
 
     fn assert_segments(graphemes: &Graphemes, expected: &[&str]) {
-        let actual = graphemes
-            .iter()
-            .map(|segment_text| segment_text.text)
-            .collect::<Vec<_>>();
+        let actual = graphemes.iter().map(|segment_text| segment_text.text).collect::<Vec<_>>();
         assert_eq!(actual, expected);
         assert_eq!(graphemes.len(), expected.len());
     }
 
     #[test]
-    fn test_index_access_returns_expected_segments() {
+    fn test_index_access_returns_expected_segments() -> Result<()> {
+        let _ = color_eyre::install();
+
         let text = "Hello, 世界! 👋".to_string();
         let graphemes = Graphemes::new(text);
         assert_eq!(graphemes.len(), 12);
@@ -185,38 +190,51 @@ mod tests {
         assert_eq!(graphemes[9].render(&graphemes), "!");
         assert_eq!(graphemes[10].render(&graphemes), " ");
         assert_eq!(graphemes[11].render(&graphemes), "👋");
+
+        Ok(())
     }
 
     #[test]
-    fn test_iter_returns_expected_segments() {
+    fn test_iter_returns_expected_segments() -> Result<()> {
+        let _ = color_eyre::install();
+
         let text = "Hello, 世界! 👋".to_string();
         let graphemes = Graphemes::new(text);
         let collected = graphemes.iter().map(|gt| gt.text).collect::<Vec<_>>();
-        assert_eq!(
-            collected,
-            vec!["H", "e", "l", "l", "o", ",", " ", "世", "界", "!", " ", "👋"]
-        );
+        assert_eq!(collected, vec!["H", "e", "l", "l", "o", ",", " ", "世", "界", "!", " ", "👋"]);
+
+        Ok(())
     }
 
     #[test]
-    fn test_empty_content() {
+    fn test_empty_content() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new(String::new());
         assert_eq!(graphemes.len(), 0);
         assert!(graphemes.iter().next().is_none());
         assert_eq!((&graphemes).into_iter().count(), 0);
+
+        Ok(())
     }
 
     #[test]
-    fn test_ascii_width_for_mixed_content() {
+    fn test_ascii_width_for_mixed_content() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("A世👋".to_string());
         assert_segments(&graphemes, &["A", "世", "👋"]);
         assert_eq!(graphemes[0].ascii_width(), 1);
         assert_eq!(graphemes[1].ascii_width(), 2);
         assert_eq!(graphemes[2].ascii_width(), 2);
+
+        Ok(())
     }
 
     #[test]
-    fn test_iter_and_index_are_consistent() {
+    fn test_iter_and_index_are_consistent() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("ab世👋z".to_string());
         for (i, iter_text) in graphemes.iter().enumerate() {
             let by_index = graphemes[i].render(&graphemes);
@@ -225,77 +243,109 @@ mod tests {
             assert_eq!(iter_text.end(), graphemes[i].end());
             assert_eq!(iter_text.ascii_width(), graphemes[i].ascii_width());
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_newline_segments() {
+    fn test_newline_segments() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("a\n\nb".to_string());
         assert_segments(&graphemes, &["a", "\n", "\n", "b"]);
+
+        Ok(())
     }
 
     #[test]
-    fn test_combining_mark_is_single_grapheme() {
+    fn test_combining_mark_is_single_grapheme() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("e\u{301}".to_string());
         assert_segments(&graphemes, &["e\u{301}"]);
         assert_eq!(graphemes[0].ascii_width(), 1);
+
+        Ok(())
     }
 
     #[test]
-    fn test_zwj_emoji_is_single_grapheme() {
+    fn test_zwj_emoji_is_single_grapheme() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("🧑‍🚀".to_string());
         assert_segments(&graphemes, &["🧑‍🚀"]);
         assert!(graphemes[0].ascii_width() >= 2);
+
+        Ok(())
     }
 
     #[test]
-    fn test_flag_emoji_is_single_grapheme() {
+    fn test_flag_emoji_is_single_grapheme() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("🇺🇳".to_string());
         assert_segments(&graphemes, &["🇺🇳"]);
         assert!(graphemes[0].ascii_width() >= 2);
+
+        Ok(())
     }
 
     #[test]
-    fn test_variation_selector_is_single_grapheme() {
+    fn test_variation_selector_is_single_grapheme() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("✌️".to_string());
         assert_segments(&graphemes, &["✌️"]);
         assert!(graphemes[0].ascii_width() >= 1);
+
+        Ok(())
     }
 
     #[test]
-    fn test_add_assign_accumulates_range_and_width() {
+    fn test_add_assign_accumulates_range_and_width() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("A世👋".to_string());
         let mut merged = Grapheme::default();
 
-        let first = graphemes.iter().next().expect("missing first grapheme");
+        let first = graphemes.iter().next().ok_or_else(|| eyre!("missing first grapheme"))?;
         merged += first.grapheme();
         assert_eq!(merged.start(), first.start());
         assert_eq!(merged.end(), first.end());
         assert_eq!(merged.ascii_width(), first.ascii_width());
 
-        let second = graphemes.iter().nth(1).expect("missing second grapheme");
+        let second = graphemes.iter().nth(1).ok_or_else(|| eyre!("missing second grapheme"))?;
         merged += second.grapheme();
         assert_eq!(merged.render(&graphemes), "A世");
         assert_eq!(merged.ascii_width(), first.ascii_width() + second.ascii_width());
 
-        let third = graphemes.iter().nth(2).expect("missing third grapheme");
+        let third = graphemes.iter().nth(2).ok_or_else(|| eyre!("missing third grapheme"))?;
         merged += third.grapheme();
         assert_eq!(merged.render(&graphemes), "A世👋");
         assert_eq!(
             merged.ascii_width(),
             first.ascii_width() + second.ascii_width() + third.ascii_width()
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_into_iter_matches_iter_output() {
+    fn test_into_iter_matches_iter_output() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("Hi世👋".to_string());
         let from_iter = graphemes.iter().map(|gt| gt.text).collect::<Vec<_>>();
         let from_into_iter = (&graphemes).into_iter().map(|gt| gt.text).collect::<Vec<_>>();
         assert_eq!(from_iter, from_into_iter);
+
+        Ok(())
     }
 
     #[test]
-    fn test_offsets_are_contiguous_and_cover_content() {
+    fn test_offsets_are_contiguous_and_cover_content() -> Result<()> {
+        let _ = color_eyre::install();
+
         let text = "Ae\u{301}世🧑‍🚀\nZ".to_string();
         let graphemes = Graphemes::new(text.clone());
 
@@ -306,51 +356,75 @@ mod tests {
             expected_start = segment.end();
         }
         assert_eq!(expected_start, text.len());
+
+        Ok(())
     }
 
     #[test]
-    fn test_leading_and_trailing_newline_segments() {
+    fn test_leading_and_trailing_newline_segments() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("\nA\n".to_string());
         assert_segments(&graphemes, &["\n", "A", "\n"]);
+
+        Ok(())
     }
 
     #[test]
-    fn test_only_newline_segments() {
+    fn test_only_newline_segments() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("\n\n\n".to_string());
         assert_segments(&graphemes, &["\n", "\n", "\n"]);
+
+        Ok(())
     }
 
     #[test]
-    fn test_multiple_combining_clusters() {
+    fn test_multiple_combining_clusters() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("a\u{0301}o\u{0302}".to_string());
         assert_segments(&graphemes, &["a\u{0301}", "o\u{0302}"]);
         assert_eq!(graphemes[0].ascii_width(), 1);
         assert_eq!(graphemes[1].ascii_width(), 1);
+
+        Ok(())
     }
 
     #[test]
-    fn test_family_emoji_is_single_grapheme() {
+    fn test_family_emoji_is_single_grapheme() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("👨‍👩‍👧‍👦".to_string());
         assert_segments(&graphemes, &["👨‍👩‍👧‍👦"]);
         assert!(graphemes[0].ascii_width() >= 2);
+
+        Ok(())
     }
 
     #[test]
-    fn test_skin_tone_modifier_is_single_grapheme() {
+    fn test_skin_tone_modifier_is_single_grapheme() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("👍🏽".to_string());
         assert_segments(&graphemes, &["👍🏽"]);
         assert!(graphemes[0].ascii_width() >= 2);
+
+        Ok(())
     }
 
     #[test]
-    fn test_add_assign_keeps_initial_start_and_extends_end() {
+    fn test_add_assign_keeps_initial_start_and_extends_end() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("ab世".to_string());
         let mut merged = Grapheme::default();
 
         let mut it = graphemes.iter();
-        let first = it.next().expect("missing first grapheme");
-        let second = it.next().expect("missing second grapheme");
-        let third = it.next().expect("missing third grapheme");
+        let first = it.next().ok_or_else(|| eyre!("missing first grapheme"))?;
+        let second = it.next().ok_or_else(|| eyre!("missing second grapheme"))?;
+        let third = it.next().ok_or_else(|| eyre!("missing third grapheme"))?;
 
         merged += first.grapheme();
         let initial_start = merged.start();
@@ -362,12 +436,20 @@ mod tests {
         merged += third.grapheme();
         assert_eq!(merged.start(), initial_start);
         assert_eq!(merged.render(&graphemes), "ab世");
+
+        Ok(())
     }
 
     #[test]
-    #[should_panic]
-    fn test_index_out_of_bounds_panics() {
+    fn test_index_out_of_bounds_panics() -> Result<()> {
+        let _ = color_eyre::install();
+
         let graphemes = Graphemes::new("ok".to_string());
-        let _ = graphemes[2];
+        let result = std::panic::catch_unwind(|| {
+            let _ = graphemes[2];
+        });
+        assert!(result.is_err());
+
+        Ok(())
     }
 }

@@ -1,6 +1,7 @@
 pub mod border {
     use clap::ValueEnum;
-    use rush_say::{BorderStyle, border_factory};
+    use rush_say::border_factory;
+    use rush_say::style::BorderStyle;
     use std::fmt::{Display, Formatter};
     use std::str::FromStr;
 
@@ -63,7 +64,8 @@ pub mod border {
 
 pub mod comment {
     use clap::ValueEnum;
-    use rush_say::{CommentStyle, comment_factory};
+    use rush_say::comment_factory;
+    use rush_say::style::CommentStyle;
     use std::fmt::{Display, Formatter};
     use std::str::FromStr;
 

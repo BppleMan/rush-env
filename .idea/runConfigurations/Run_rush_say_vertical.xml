@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run rush-say" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Run rush-say vertical" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="buildProfileId" value="dev" />
-    <option name="command" value="run --package rush-say --bin rush-say" />
+    <option name="command" value="run --package rush-say --bin rush-say -- &quot;1234&quot; &quot;5678&quot; &quot;9012&quot; -x vertical -w 8" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />

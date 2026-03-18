@@ -5,6 +5,9 @@
       <sourceFolder url="file://$MODULE_DIR$/rush-lib/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rush-var/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rush-say/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rush-derive/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rush-ext/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rush-ext/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/rush-env/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rush-env/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rush-env/src" isTestSource="false" />

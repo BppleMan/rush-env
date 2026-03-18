@@ -1,20 +1,38 @@
 use std::io::Write;
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-use crate::widget::{Align, Constraints, Size, Widget};
-use crate::{Grapheme, Graphemes};
+use crate::error::layout_error::{LayoutDiagnostic, LayoutResult, WidgetView};
+use crate::layout::{Align, Constraints, Size};
+use crate::model::{Grapheme, GraphemeText, Graphemes};
+use crate::widget::Widget;
+use rush_ext::FieldName;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, FieldName)]
 pub struct Text {
     pub content: Graphemes,
     pub align: Align,
-    layout: TextLayout,
+    state: TextState,
+    size: Size,
 }
 
-#[derive(Default, Debug, Clone)]
-struct TextLayout {
+#[derive(Default, Debug, Clone, FieldName)]
+pub struct TextState {
     lines: Vec<Grapheme>,
-    size: Size,
+}
+
+impl Deref for Text {
+    type Target = TextState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl DerefMut for Text {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
 }
 
 impl Text {
@@ -35,8 +53,27 @@ impl Text {
         self.align = align;
         self
     }
+}
 
-    fn wrap_text(&self, max_width: usize) -> Vec<Grapheme> {
+impl Text {
+    fn detect_max_width(&self, max_width: usize) -> Option<(usize, GraphemeText<'_>)> {
+        self.content.iter().map(|g| (g.ascii_width(), g)).find(|(w, _)| *w > max_width)
+    }
+
+    fn wrap_text(&self, constraints: Constraints) -> LayoutResult<Vec<Grapheme>> {
+        if let Some((max_grapheme_width, grapheme)) = self.detect_max_width(constraints.max_width)
+            && constraints.max_width < max_grapheme_width
+        {
+            return Err(self.layout_error(
+                constraints,
+                LayoutDiagnostic::quoted(
+                    "最大可用宽度无法满足最大字素的 ASCII-width",
+                    self.content.get_content(),
+                    &grapheme,
+                    format!("ASCII-width 为 {}", grapheme.ascii_width()),
+                ),
+            ));
+        }
         let mut wrapped_lines: Vec<Grapheme> = vec![];
         let mut line_buffer: Grapheme = Grapheme::default();
         for grapheme in &self.content {
@@ -45,8 +82,7 @@ impl Text {
                     wrapped_lines.push(std::mem::take(&mut line_buffer));
                 }
                 _ => {
-                    if line_buffer.ascii_width() + grapheme.ascii_width() > max_width {
-                        // 如果当前行宽度超过限制，则换行
+                    if line_buffer.ascii_width() + grapheme.ascii_width() > constraints.max_width {
                         wrapped_lines.push(std::mem::take(&mut line_buffer));
                     }
                     line_buffer += grapheme.grapheme();
@@ -54,32 +90,59 @@ impl Text {
             }
         }
         wrapped_lines.push(line_buffer);
-        wrapped_lines
+        Ok(wrapped_lines)
+    }
+
+    /// 越界时输出等宽空格
+    fn render_blank(&self, writer: &mut impl Write) -> std::io::Result<()> {
+        write!(writer, "{}", " ".repeat(self.size.w()))
+    }
+
+    /// 计算某行文本的左右对齐留白
+    fn align_padding(&self, line_width: usize) -> (usize, usize) {
+        let remaining = self.size.w().saturating_sub(line_width);
+        match self.align {
+            Align::TopLeft | Align::Left | Align::BottomLeft => (0, remaining),
+            Align::TopCenter | Align::Center | Align::BottomCenter => (remaining / 2, remaining - (remaining / 2)),
+            Align::TopRight | Align::Right | Align::BottomRight => (remaining, 0),
+        }
+    }
+
+    /// 渲染一行文本内容（含对齐留白）
+    fn render_line(&self, writer: &mut impl Write, row: usize) -> std::io::Result<()> {
+        let line = &self.state.lines[row];
+        let rendered_line = line.render(&self.content);
+        let (left, right) = self.align_padding(line.ascii_width());
+        write!(writer, "{}{}{}", " ".repeat(left), rendered_line, " ".repeat(right))
     }
 }
 
 impl Widget for Text {
-    fn size(&self) -> Size {
-        self.layout.size
+    fn name(&self) -> &'static str {
+        "Text"
     }
 
-    fn layout(&mut self, constraints: Constraints) {
-        self.layout.lines = self.wrap_text(constraints.max_width);
-        let width = self.layout.lines.iter().map(Grapheme::ascii_width).max().unwrap_or(0);
-        let height = self.layout.lines.len();
-        self.layout.size = Size { width, height };
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn layout(&mut self, constraints: Constraints) -> LayoutResult {
+        self.state.lines = self.wrap_text(constraints)?;
+        let width = self.state.lines.iter().map(Grapheme::ascii_width).max().unwrap_or(0);
+        let height = self.state.lines.len();
+        self.size = Size::new(width, height);
+        Ok(())
     }
 
     fn render(&self, writer: &mut impl Write, row: usize) -> std::io::Result<()> {
-        let line = &self.layout.lines[row];
-        let rendered_line = line.render(&self.content);
-        let remaining_width = self.layout.size.width.saturating_sub(line.ascii_width());
-        let (left, right) = match self.align {
-            Align::Center => (remaining_width / 2, remaining_width - (remaining_width / 2)),
-            Align::Left => (0, remaining_width),
-            Align::Right => (remaining_width, 0),
-        };
-        write!(writer, "{}{}{}", " ".repeat(left), rendered_line, " ".repeat(right))
+        if row >= self.size.h() {
+            return self.render_blank(writer);
+        }
+        self.render_line(writer, row)
+    }
+
+    fn widget_view(&self) -> WidgetView {
+        WidgetView::new(self.name()).with_align(self.align)
     }
 }
 
@@ -93,395 +156,235 @@ impl FromStr for Text {
 
 #[cfg(test)]
 mod tests {
+    use crate::layout::{Align, Constraints};
+    use crate::widget::Widget;
     use crate::widget::text::Text;
+    use color_eyre::{Result, eyre::eyre};
+    use insta::assert_snapshot;
+    use std::io::{Cursor, Write as _};
 
-    #[test]
-    fn test_text_widget_wraps_crlf_and_emoji() {
-        let text = Text::new("Hel🧑‍🚀lo,\r\nworld!");
-        let lines = text.wrap_text(4);
-        assert_eq!(5, lines.len());
+    fn render_all(w: &impl Widget) -> Result<String> {
+        let mut buf = Cursor::new(vec![]);
+        let h = w.size().h();
+        for row in 0..h {
+            w.render(&mut buf, row)?;
+            if row + 1 < h {
+                writeln!(&mut buf)?;
+            }
+        }
+        Ok(String::from_utf8(buf.into_inner())?)
+    }
 
-        assert_eq!(3, lines[0].ascii_width());
-        assert_eq!("Hel", lines[0].render(&text.content));
-
-        assert_eq!(4, lines[1].ascii_width());
-        assert_eq!("🧑‍🚀lo", lines[1].render(&text.content));
-
-        assert_eq!(1, lines[2].ascii_width());
-        assert_eq!(",", lines[2].render(&text.content));
-
-        assert_eq!(4, lines[3].ascii_width());
-        assert_eq!("worl", lines[3].render(&text.content));
-
-        assert_eq!(2, lines[4].ascii_width());
-        assert_eq!("d!", lines[4].render(&text.content));
+    fn render_row(w: &impl Widget, row: usize) -> Result<String> {
+        let mut buf = Cursor::new(vec![]);
+        w.render(&mut buf, row)?;
+        Ok(String::from_utf8(buf.into_inner())?)
     }
 
     #[test]
-    fn test_text_widget_simple_ascii() {
-        let text = Text::new("hello world");
-        let lines = text.wrap_text(5);
-        assert_eq!(3, lines.len());
+    fn test_layout_cases_snapshot() -> Result<()> {
+        let _ = color_eyre::install();
 
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("hello", lines[0].render(&text.content));
+        let mut text = Text::with_align("ab", Align::Center);
+        let err = match text.layout(Constraints {
+            max_width: 0,
+            ..Default::default()
+        }) {
+            Err(err) => err,
+            Ok(()) => return Err(eyre!("text.layout should fail")),
+        };
+        assert_snapshot!(
+            err.to_string(),
+            @r#"
+            LayoutError: 最大可用宽度无法满足最大字素的 ASCII-width
 
-        assert_eq!(5, lines[1].ascii_width());
-        assert_eq!(" worl", lines[1].render(&text.content));
+            Text (⧈) { 0 x 0 } |-> 0 <-|
 
-        assert_eq!(1, lines[2].ascii_width());
-        assert_eq!("d", lines[2].render(&text.content));
+            "ab"
+             ^
+            ASCII-width 为 1
+            "#
+        );
+
+        let mut text = Text::with_align("", Align::Center);
+        text.layout(Constraints::new(10, 0))?;
+        assert_snapshot!(
+            format!(
+                "size: {}x{}\nrow_0: |{}|",
+                text.size().w(),
+                text.size().h(),
+                render_row(&text, 0)?,
+            ),
+            @r"
+            size: 0x1
+            row_0: ||
+            "
+        );
+
+        let mut text = Text::with_align("hello world", Align::Center);
+        text.layout(Constraints::new(6, 0))?;
+        assert_snapshot!(
+            format!(
+                "size: {}x{}\nrow_0: |{}|\nrow_1: |{}|\nrendered: |{}|",
+                text.size().w(),
+                text.size().h(),
+                render_row(&text, 0)?,
+                render_row(&text, 1)?,
+                render_all(&text)?.replace('\n', "\\n"),
+            ),
+            @r"
+            size: 6x2
+            row_0: |hello |
+            row_1: |world |
+            rendered: |hello \nworld |
+            "
+        );
+
+        Ok(())
     }
 
     #[test]
-    fn test_text_widget_exact_fit() {
-        let text = Text::new("hello");
-        let lines = text.wrap_text(5);
-        assert_eq!(1, lines.len());
+    fn test_wrap_cases_snapshot() -> Result<()> {
+        let _ = color_eyre::install();
 
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("hello", lines[0].render(&text.content));
+        let text = Text::new("a\r\n\nb\rc\n");
+        let lines = text.wrap_text(Constraints::new(10, 0))?;
+        assert_snapshot!(
+            format!(
+                "line_count: {}\n[0] width={} text=|{}|\n[1] width={} text=|{}|\n[2] width={} text=|{}|\n[3] width={} text=|{}|\n[4] width={} text=|{}|",
+                lines.len(),
+                lines[0].ascii_width(),
+                lines[0].render(&text.content),
+                lines[1].ascii_width(),
+                lines[1].render(&text.content),
+                lines[2].ascii_width(),
+                lines[2].render(&text.content),
+                lines[3].ascii_width(),
+                lines[3].render(&text.content),
+                lines[4].ascii_width(),
+                lines[4].render(&text.content),
+            ),
+            @r"
+            line_count: 5
+            [0] width=1 text=|a|
+            [1] width=0 text=||
+            [2] width=1 text=|b|
+            [3] width=1 text=|c|
+            [4] width=0 text=||
+            "
+        );
+
+        let text = Text::new("a🧑‍🚀bc");
+        let lines = text.wrap_text(Constraints::new(4, 0))?;
+        assert_snapshot!(
+            format!(
+                "line_count: {}\n[0] width={} text=|{}|\n[1] width={} text=|{}|",
+                lines.len(),
+                lines[0].ascii_width(),
+                lines[0].render(&text.content),
+                lines[1].ascii_width(),
+                lines[1].render(&text.content),
+            ),
+            @r"
+            line_count: 2
+            [0] width=4 text=|a🧑‍🚀b|
+            [1] width=1 text=|c|
+            "
+        );
+
+        let text = Text::new("🎉a");
+        let err = match text.wrap_text(Constraints::new(1, 0)) {
+            Err(err) => err,
+            Ok(_) => return Err(eyre!("text.wrap_text should fail")),
+        };
+        assert_snapshot!(
+            err.to_string(),
+            @r#"
+            LayoutError: 最大可用宽度无法满足最大字素的 ASCII-width
+
+            Text (⧈) { 0 x 0 } |-> 1 <-|
+
+            "🎉a"
+             ^^
+            ASCII-width 为 2
+            "#
+        );
+
+        Ok(())
     }
 
     #[test]
-    fn test_text_widget_single_char_per_line() {
-        let text = Text::new("abc");
-        let lines = text.wrap_text(1);
-        assert_eq!(3, lines.len());
-
-        assert_eq!(1, lines[0].ascii_width());
-        assert_eq!("a", lines[0].render(&text.content));
-
-        assert_eq!(1, lines[1].ascii_width());
-        assert_eq!("b", lines[1].render(&text.content));
-
-        assert_eq!(1, lines[2].ascii_width());
-        assert_eq!("c", lines[2].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_empty_string() {
-        let text = Text::new("");
-        let lines = text.wrap_text(10);
-        assert_eq!(1, lines.len());
-
-        assert_eq!(0, lines[0].ascii_width());
-        assert_eq!("", lines[0].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_single_newline() {
-        let text = Text::new("hello\nworld");
-        let lines = text.wrap_text(10);
-        assert_eq!(2, lines.len());
-
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("hello", lines[0].render(&text.content));
-
-        assert_eq!(5, lines[1].ascii_width());
-        assert_eq!("world", lines[1].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_multiple_newlines() {
-        let text = Text::new("a\n\nb");
-        let lines = text.wrap_text(10);
-        assert_eq!(3, lines.len());
-
-        assert_eq!(1, lines[0].ascii_width());
-        assert_eq!("a", lines[0].render(&text.content));
-
-        assert_eq!(0, lines[1].ascii_width());
-        assert_eq!("", lines[1].render(&text.content));
-
-        assert_eq!(1, lines[2].ascii_width());
-        assert_eq!("b", lines[2].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_unicode_wide_chars() {
-        let text = Text::new("你好世界");
-        let lines = text.wrap_text(4);
-        assert_eq!(2, lines.len());
-
-        assert_eq!(4, lines[0].ascii_width());
-        assert_eq!("你好", lines[0].render(&text.content));
-
-        assert_eq!(4, lines[1].ascii_width());
-        assert_eq!("世界", lines[1].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_mixed_ascii_unicode() {
-        let text = Text::new("hello你好");
-        let lines = text.wrap_text(6);
-        assert_eq!(2, lines.len());
-
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("hello", lines[0].render(&text.content));
-
-        assert_eq!(4, lines[1].ascii_width());
-        assert_eq!("你好", lines[1].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_cr_line_ending() {
-        let text = Text::new("line1\rline2");
-        let lines = text.wrap_text(10);
-        assert_eq!(2, lines.len());
-
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("line1", lines[0].render(&text.content));
-
-        assert_eq!(5, lines[1].ascii_width());
-        assert_eq!("line2", lines[1].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_trailing_newline() {
-        let text = Text::new("hello\n");
-        let lines = text.wrap_text(10);
-        assert_eq!(2, lines.len());
-
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("hello", lines[0].render(&text.content));
-
-        assert_eq!(0, lines[1].ascii_width());
-        assert_eq!("", lines[1].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_very_long_word() {
-        let text = Text::new("supercalifragilisticexpialidocious");
-        let lines = text.wrap_text(10);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(10, lines[0].ascii_width());
-        assert_eq!("supercalif", lines[0].render(&text.content));
-
-        assert_eq!(10, lines[1].ascii_width());
-        assert_eq!("ragilistic", lines[1].render(&text.content));
-
-        assert_eq!(10, lines[2].ascii_width());
-        assert_eq!("expialidoc", lines[2].render(&text.content));
-
-        assert_eq!(4, lines[3].ascii_width());
-        assert_eq!("ious", lines[3].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_spaces_and_wrapping() {
-        let text = Text::new("a  b  c");
-        let lines = text.wrap_text(3);
-        assert_eq!(3, lines.len());
-
-        assert_eq!(3, lines[0].ascii_width());
-        assert_eq!("a  ", lines[0].render(&text.content));
-
-        assert_eq!(3, lines[1].ascii_width());
-        assert_eq!("b  ", lines[1].render(&text.content));
-
-        assert_eq!(1, lines[2].ascii_width());
-        assert_eq!("c", lines[2].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_emoji_narrow_width() {
-        let text = Text::new("Hel🧑‍🚀lo,wo🧑‍🚀rld!");
-        let lines = text.wrap_text(3);
-        assert_eq!(6, lines.len());
-
-        assert_eq!(3, lines[0].ascii_width());
-        assert_eq!("Hel", lines[0].render(&text.content));
-
-        assert_eq!(3, lines[1].ascii_width());
-        assert_eq!("🧑‍🚀l", lines[1].render(&text.content));
-
-        assert_eq!(3, lines[2].ascii_width());
-        assert_eq!("o,w", lines[2].render(&text.content));
-
-        assert_eq!(3, lines[3].ascii_width());
-        assert_eq!("o🧑‍🚀", lines[3].render(&text.content));
-
-        assert_eq!(3, lines[4].ascii_width());
-        assert_eq!("rld", lines[4].render(&text.content));
-
-        assert_eq!(1, lines[5].ascii_width());
-        assert_eq!("!", lines[5].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_emoji_wide_width() {
-        let text = Text::new("Hel🧑‍🚀lo,wo🧑‍🚀rld!");
-        let lines = text.wrap_text(10);
-        assert_eq!(2, lines.len());
-
-        assert_eq!(10, lines[0].ascii_width());
-        assert_eq!("Hel🧑‍🚀lo,wo", lines[0].render(&text.content));
-
-        assert_eq!(6, lines[1].ascii_width());
-        assert_eq!("🧑‍🚀rld!", lines[1].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_mixed_emoji_newlines() {
-        let text = Text::new("Hello🎉\n🚀World\r\n🌟End!");
-        let lines = text.wrap_text(8);
-        assert_eq!(3, lines.len());
-
-        assert_eq!(7, lines[0].ascii_width());
-        assert_eq!("Hello🎉", lines[0].render(&text.content));
-
-        assert_eq!(7, lines[1].ascii_width());
-        assert_eq!("🚀World", lines[1].render(&text.content));
-
-        assert_eq!(6, lines[2].ascii_width());
-        assert_eq!("🌟End!", lines[2].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_multiple_emoji_sequence() {
-        let text = Text::new("🎯🎨🎪🎭🎮");
-        let lines = text.wrap_text(4);
-        assert_eq!(3, lines.len());
-
-        assert_eq!(4, lines[0].ascii_width());
-        assert_eq!("🎯🎨", lines[0].render(&text.content));
-
-        assert_eq!(4, lines[1].ascii_width());
-        assert_eq!("🎪🎭", lines[1].render(&text.content));
-
-        assert_eq!(2, lines[2].ascii_width());
-        assert_eq!("🎮", lines[2].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_emoji_with_text_tight() {
-        let text = Text::new("Hi🌈there🔥world🚀!");
-        let lines = text.wrap_text(6);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(6, lines[0].ascii_width());
-        assert_eq!("Hi🌈th", lines[0].render(&text.content));
-
-        assert_eq!(6, lines[1].ascii_width());
-        assert_eq!("ere🔥w", lines[1].render(&text.content));
-
-        assert_eq!(6, lines[2].ascii_width());
-        assert_eq!("orld🚀", lines[2].render(&text.content));
-
-        assert_eq!(1, lines[3].ascii_width());
-        assert_eq!("!", lines[3].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_complex_emoji_text() {
-        let text = Text::new("🧑‍🚀👨‍💻👩‍🎨\nCode🚀Fast💨");
-        let lines = text.wrap_text(7);
-        assert_eq!(3, lines.len());
-
-        assert_eq!(6, lines[0].ascii_width());
-        assert_eq!("🧑‍🚀👨‍💻👩‍🎨", lines[0].render(&text.content));
-
-        assert_eq!(7, lines[1].ascii_width());
-        assert_eq!("Code🚀F", lines[1].render(&text.content));
-
-        assert_eq!(5, lines[2].ascii_width());
-        assert_eq!("ast💨", lines[2].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_single_emoji_per_line() {
-        let text = Text::new("🎉🎊🎈🎁");
-        let lines = text.wrap_text(2);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(2, lines[0].ascii_width());
-        assert_eq!("🎉", lines[0].render(&text.content));
-
-        assert_eq!(2, lines[1].ascii_width());
-        assert_eq!("🎊", lines[1].render(&text.content));
-
-        assert_eq!(2, lines[2].ascii_width());
-        assert_eq!("🎈", lines[2].render(&text.content));
-
-        assert_eq!(2, lines[3].ascii_width());
-        assert_eq!("🎁", lines[3].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_emoji_with_cr_lf() {
-        let text = Text::new("Fun🎪\r\nTime⏰\rNow🌟");
-        let lines = text.wrap_text(5);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(5, lines[0].ascii_width());
-        assert_eq!("Fun🎪", lines[0].render(&text.content));
-
-        assert_eq!(4, lines[1].ascii_width());
-        assert_eq!("Time", lines[1].render(&text.content));
-
-        assert_eq!(2, lines[2].ascii_width());
-        assert_eq!("⏰", lines[2].render(&text.content));
-
-        assert_eq!(5, lines[3].ascii_width());
-        assert_eq!("Now🌟", lines[3].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_long_emoji_text_mix() {
-        let text = Text::new("Programming🧑‍💻is🚀awesome🎯today!");
-        let lines = text.wrap_text(9);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(9, lines[0].ascii_width());
-        assert_eq!("Programmi", lines[0].render(&text.content));
-
-        assert_eq!(9, lines[1].ascii_width());
-        assert_eq!("ng🧑‍💻is🚀a", lines[1].render(&text.content));
-
-        assert_eq!(9, lines[2].ascii_width());
-        assert_eq!("wesome🎯t", lines[2].render(&text.content));
-
-        assert_eq!(5, lines[3].ascii_width());
-        assert_eq!("oday!", lines[3].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_emoji_trailing_newlines() {
-        let text = Text::new("Hello🌍\n\n🎉Party\n");
-        let lines = text.wrap_text(10);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(7, lines[0].ascii_width());
-        assert_eq!("Hello🌍", lines[0].render(&text.content));
-
-        assert_eq!(0, lines[1].ascii_width());
-        assert_eq!("", lines[1].render(&text.content));
-
-        assert_eq!(7, lines[2].ascii_width());
-        assert_eq!("🎉Party", lines[2].render(&text.content));
-
-        assert_eq!(0, lines[3].ascii_width());
-        assert_eq!("", lines[3].render(&text.content));
-    }
-
-    #[test]
-    fn test_text_widget_mixed_unicode_emoji() {
-        let text = Text::new("你好🌸world🎌こんにちは🗾!");
-        let lines = text.wrap_text(8);
-        assert_eq!(4, lines.len());
-
-        assert_eq!(8, lines[0].ascii_width());
-        assert_eq!("你好🌸wo", lines[0].render(&text.content));
-
-        assert_eq!(7, lines[1].ascii_width());
-        assert_eq!("rld🎌こ", lines[1].render(&text.content));
-
-        assert_eq!(8, lines[2].ascii_width());
-        assert_eq!("んにちは", lines[2].render(&text.content));
-
-        assert_eq!(3, lines[3].ascii_width());
-        assert_eq!("🗾!", lines[3].render(&text.content));
+    fn test_render_cases_snapshot() -> Result<()> {
+        let _ = color_eyre::install();
+
+        let mut text = Text::new("hi\na").set_align(Align::Left);
+        text.layout(Constraints::new(10, 0))?;
+        assert_snapshot!(
+            format!(
+                "size: {}x{}\nrow_0: |{}|\nrow_1: |{}|",
+                text.size().w(),
+                text.size().h(),
+                render_row(&text, 0)?,
+                render_row(&text, 1)?,
+            ),
+            @r"
+            size: 2x2
+            row_0: |hi|
+            row_1: |a |
+            "
+        );
+
+        let mut text = Text::new("hi\na").set_align(Align::Center);
+        text.layout(Constraints::new(10, 0))?;
+        assert_snapshot!(
+            format!(
+                "size: {}x{}\nrow_0: |{}|\nrow_1: |{}|",
+                text.size().w(),
+                text.size().h(),
+                render_row(&text, 0)?,
+                render_row(&text, 1)?,
+            ),
+            @r"
+            size: 2x2
+            row_0: |hi|
+            row_1: |a |
+            "
+        );
+
+        let mut text = Text::new("hi\na").set_align(Align::Right);
+        text.layout(Constraints::new(10, 0))?;
+        assert_snapshot!(
+            format!(
+                "size: {}x{}\nrow_0: |{}|\nrow_1: |{}|",
+                text.size().w(),
+                text.size().h(),
+                render_row(&text, 0)?,
+                render_row(&text, 1)?,
+            ),
+            @r"
+            size: 2x2
+            row_0: |hi|
+            row_1: | a|
+            "
+        );
+
+        let mut text = Text::new("ab");
+        text.layout(Constraints::new(10, 0))?;
+        assert_snapshot!(
+            format!(
+                "size: {}x{}\nrow_0: |{}|\nrow_1: |{}|",
+                text.size().w(),
+                text.size().h(),
+                render_row(&text, 0)?,
+                render_row(&text, 1)?,
+            ),
+            @r"
+            size: 2x1
+            row_0: |ab|
+            row_1: |  |
+            "
+        );
+
+        Ok(())
     }
 }

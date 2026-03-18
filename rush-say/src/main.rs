@@ -3,7 +3,9 @@ mod cli;
 use crate::cli::border::BorderType;
 use crate::cli::comment::CommentType;
 use clap::Parser;
-use rush_say::{Align, Bubble, SimpleRng};
+use rush_say::bubble::Bubble;
+use rush_say::layout::{Align, Axis};
+use rush_say::simple_rng::SimpleRng;
 use std::io::{self, Read};
 
 /// 终端气泡注释输出工具，支持自动换行、视觉居中、中文emoji宽度处理。
@@ -14,12 +16,12 @@ struct Cli {
     #[arg(long, value_name = "EXAMPLE", default_value_t = false)]
     example: bool,
 
-    /// 直接以参数传入内容（支持多行），不填则自动从标准输入读取
-    #[arg(value_name = "TEXT", required = false)]
-    text: Option<String>,
+    /// 直接以参数传入内容，支持传多个字符串（多个则渲染为列表气泡）
+    #[arg(value_name = "TEXT")]
+    text: Vec<String>,
 
     /// 指定注释框宽度
-    #[arg(short, long, value_name = "WIDTH", default_value_t = 48)]
+    #[arg(short, long, value_name = "WIDTH", default_value_t = 46)]
     width: usize,
 
     /// 指定内容与边框的margin
@@ -27,7 +29,7 @@ struct Cli {
     margin: usize,
 
     /// 指定内容与边框的padding
-    #[arg(short, long, value_name = "PADDING", default_value_t = 2)]
+    #[arg(short, long, value_name = "PADDING", default_value_t = 1)]
     padding: usize,
 
     #[arg(short, long, value_enum, default_value_t = Align::Center)]
@@ -35,6 +37,10 @@ struct Cli {
 
     #[arg(short, long, value_enum, default_value_t = Align::Center)]
     text_align: Align,
+
+    /// 如果存在 list 时的主轴
+    #[arg(short = 'x', long, value_enum, default_value_t = Axis::Vertical)]
+    axis: Axis,
 
     /// 指定边框样式
     #[arg(short, long, value_name = "BORDER", value_enum, default_value_t = BorderType::rounded)]
@@ -46,7 +52,7 @@ struct Cli {
 }
 
 fn main() -> color_eyre::Result<()> {
-    color_eyre::install()?;
+    let _ = color_eyre::install();
     let cli = Cli::parse();
 
     println!("cli: {cli:?}");
@@ -65,21 +71,26 @@ fn main() -> color_eyre::Result<()> {
             padding: cli.padding,
             border: cli.border.build(),
             align: cli.align,
+            axis: cli.axis,
             text_align: cli.text_align,
             comment: cli.comment.map(|ct| ct.build()),
         };
 
         // 3. 准备文本内容
-        let text = if let Some(text) = cli.text {
-            text
-        } else {
+        let texts = if cli.text.is_empty() {
             let mut content = String::new();
             io::stdin().read_to_string(&mut content)?;
-            content.strip_suffix('\n').unwrap_or(&content).to_string()
+            vec![content.strip_suffix('\n').unwrap_or(&content).to_string()]
+        } else {
+            cli.text
         };
 
-        // 4. say
-        bubble.say(&text)?;
+        // 4. say / say_more
+        if texts.len() == 1 {
+            bubble.say(&texts[0])?;
+        } else {
+            bubble.say_more(&texts)?;
+        }
     }
 
     Ok(())
@@ -108,8 +119,19 @@ pub fn say_example() -> color_eyre::Result<()> {
         // 写一组输出；失败时判断是否是 BrokenPipe
         match bubble.say(example_text) {
             Ok(()) => {}
-            Err(e) if e.kind() == io::ErrorKind::BrokenPipe => break Ok(()), // 用户在 less 里 q 了
-            Err(e) => return Err(e.into()),
+            // Err(e) if e.kind() == io::ErrorKind::BrokenPipe => break Ok(()), // 用户在 less 里 q 了
+            Err(e) => {
+                if let Some(s) = e.source()
+                    && s.downcast_ref::<std::io::Error>()
+                        .as_ref()
+                        .map(|e| e.kind() == io::ErrorKind::BrokenPipe)
+                        .unwrap_or(false)
+                {
+                    break Ok(());
+                } else {
+                    return Err(e);
+                }
+            }
         }
     }
 }
