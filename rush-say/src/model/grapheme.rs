@@ -1,5 +1,5 @@
 use crate::error::layout_error::SourceSpan;
-use rush_ext::Getter;
+use rush_macros::Getter;
 use std::ops::{Add, AddAssign, Index};
 use std::slice::Iter;
 use unicode_segmentation::UnicodeSegmentation;

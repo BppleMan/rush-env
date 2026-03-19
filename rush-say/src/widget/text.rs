@@ -6,7 +6,7 @@ use crate::error::layout_error::{LayoutDiagnostic, LayoutResult, WidgetView};
 use crate::layout::{Align, Constraints, Size};
 use crate::model::{Grapheme, GraphemeText, Graphemes};
 use crate::widget::Widget;
-use rush_ext::FieldName;
+use rush_macros::FieldName;
 
 #[derive(Default, Debug, Clone, FieldName)]
 pub struct Text {

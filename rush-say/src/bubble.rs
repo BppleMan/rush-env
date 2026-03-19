@@ -4,7 +4,7 @@ use crate::layout::{Constraints, Size};
 use crate::style::{BorderStyle, CommentStyle};
 use crate::widget::{Container, List, Text, Widget};
 use color_eyre::Result;
-use rush_ext::Setter;
+use rush_macros::Setter;
 use std::io::Write;
 
 #[derive(Setter)]

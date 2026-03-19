@@ -1,5 +1,5 @@
 use crate::layout::pos::Pos;
-use rush_ext::Getter;
+use rush_macros::Getter;
 use std::fmt::{self, Display};
 use std::ops::{Add, AddAssign};
 

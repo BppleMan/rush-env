@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["rush-env", "rush-ext", "rush-say", "rush-var"]
+members = ["rush-env", "rush-macros", "rush-say", "rush-var"]
 
 [workspace.package]
 version = "0.1.1"

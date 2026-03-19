@@ -1,5 +1,5 @@
-use rush_ext::Getter;
-use rush_ext::Setter;
+use rush_macros::Getter;
+use rush_macros::Setter;
 
 use super::WidgetView;
 use crate::layout::Constraints;

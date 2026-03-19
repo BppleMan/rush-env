@@ -1,4 +1,4 @@
-use rush_ext::{FieldName, Getter, MutGetter, Setter};
+use rush_macros::{FieldName, Getter, MutGetter, Setter};
 
 #[derive(Debug, FieldName)]
 #[allow(dead_code)]
