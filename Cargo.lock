@@ -574,7 +574,6 @@ dependencies = [
  "color-eyre",
  "insta",
  "rush-ext",
- "thiserror",
  "unicode-segmentation",
  "unicode-width 0.2.2",
 ]

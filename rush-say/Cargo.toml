@@ -9,7 +9,6 @@ repository.workspace = true
 
 [dependencies]
 clap.workspace = true
-thiserror = { workspace = true }
 color-eyre.workspace = true
 rush-ext = { path = "../rush-ext" }
 unicode-segmentation = { version = "1.12.0" }
