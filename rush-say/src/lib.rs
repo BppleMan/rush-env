@@ -1,4 +1,4 @@
-pub mod bubble;
+mod bubble;
 pub mod error;
 pub mod widget;
 #[macro_use]
@@ -8,7 +8,7 @@ pub mod content;
 pub mod model;
 pub mod layout;
 
-// pub use bubble::*;
+pub use bubble::*;
 // pub use error::*;
 // pub use layout::*;
 // pub use model::*;
