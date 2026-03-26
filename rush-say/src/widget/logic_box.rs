@@ -35,6 +35,7 @@ impl LogicBox {
     }
 }
 
+#[allow(unused)]
 impl LogicBox {
     pub fn offset(&mut self, dx: usize, dy: usize) {
         self.rect.offset(dx, dy)

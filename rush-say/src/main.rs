@@ -3,7 +3,7 @@ mod cli;
 use crate::cli::border::BorderType;
 use crate::cli::comment::CommentType;
 use clap::Parser;
-use rush_say::bubble::Bubble;
+use rush_say::Bubble;
 use rush_say::layout::{Align, Axis};
 use rush_say::simple_rng::SimpleRng;
 use std::io::{self, Read};
@@ -55,7 +55,7 @@ fn main() -> color_eyre::Result<()> {
     let _ = color_eyre::install();
     let cli = Cli::parse();
 
-    println!("cli: {cli:?}");
+    // println!("cli: {cli:?}");
 
     if cli.example {
         say_example()?;

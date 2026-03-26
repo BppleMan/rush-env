@@ -24,6 +24,10 @@ impl Graphemes {
         Self { content, graphemes }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.content.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.graphemes.len()
     }
@@ -163,7 +167,7 @@ impl<'a> From<&'a GraphemeText<'a>> for SourceSpan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use color_eyre::{eyre::eyre, Result};
+    use color_eyre::{Result, eyre::eyre};
 
     fn assert_segments(graphemes: &Graphemes, expected: &[&str]) {
         let actual = graphemes.iter().map(|segment_text| segment_text.text).collect::<Vec<_>>();
