@@ -94,7 +94,7 @@ where
         }
     }
 
-    fn detect_size(&mut self, max_width: usize, max_height: usize) {
+    fn detect_size_width_divide(&mut self, max_width: usize, max_height: usize) {
         self.size = match self.axis {
             Axis::Vertical => Size::new(max_width, max_height + self.divide_size),
             Axis::Horizontal => Size::new(max_width + self.divide_size, max_height),
@@ -107,15 +107,19 @@ where
         let mut offset_y = 0;
         self.children_box.clear();
         self.divider_pos.clear();
+        let child_rect_width = match self.axis {
+            Axis::Vertical => self.size.w(),
+            Axis::Horizontal => self.size.w().saturating_sub(self.divide_size) / children_count,
+        };
         for (i, child) in self.children.iter().enumerate() {
             let child_rect = match self.axis {
                 Axis::Vertical => {
-                    let size = Size::new(self.size.w(), child.size().h());
+                    let size = Size::new(child_rect_width, child.size().h());
                     let pos = self.size.top_center_of(&size);
                     Rect::pos_size(pos, size)
                 }
                 Axis::Horizontal => {
-                    let size = Size::new(self.size.w().saturating_sub(self.divide_size) / children_count, self.size.h());
+                    let size = Size::new(child_rect_width, self.size.h());
                     let pos = self.size.left_of(&size);
                     Rect::pos_size(pos, size)
                 }
@@ -213,18 +217,27 @@ where
                 )?;
             match self.state.axis {
                 Axis::Vertical => {
-                    max_width = max_width.max(child.size().w());
+                    max_width = child_max_width;
                     max_height += child.size().h();
                 }
                 Axis::Horizontal => {
-                    max_width += child.size().w();
+                    max_width += child_max_width;
                     max_height = max_height.max(child.size().h());
                 }
             };
         }
-        self.detect_size(max_width, max_height);
+        self.detect_size_width_divide(max_width, max_height);
         self.create_logic_box();
 
+        // println!("List {}", self.size);
+        // println!(
+        //     "{}",
+        //     self.children_box
+        //         .iter()
+        //         .map(|b| format!("List {}", b))
+        //         .collect::<Vec<_>>()
+        //         .join("\n")
+        // );
         Ok(())
     }
 
